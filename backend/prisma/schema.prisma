@@ -16,15 +16,6 @@ enum Role {
   admin
 }
 
-<<<<<<< HEAD
-model User {
-  id       String   @id @default(uuid())
-  name     String
-  email    String   @unique
-  password String
-  role     Role     @default(student)
-  createAt DateTime @default(now())
-=======
 enum Priority {
   high
   medium
@@ -108,5 +99,4 @@ model Notifications {
   sentAt  DateTime @default(now())
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   task    Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
->>>>>>> e4aff37 ( Backend set up)
 }
