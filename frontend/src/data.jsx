@@ -57,6 +57,17 @@ const NOTIFICATIONS = [
 
 const SUBJECTS = ['Mathematics', 'Computer Science', 'Physics', 'Chemistry', 'English Literature', 'Philosophy', 'Economics', 'Biology'];
 
+/* Suggested subject bundles per major — used in onboarding and as quick presets */
+const MAJOR_PRESETS = {
+  'Computer Science': ['Computer Science', 'Mathematics', 'Statistics', 'Data Structures & Algorithms', 'Operating Systems', 'Databases', 'Web Development'],
+  'Engineering': ['Mathematics', 'Physics', 'Engineering Mechanics', 'Thermodynamics', 'Materials Science', 'Circuits & Electronics', 'Computer Science'],
+  'Business': ['Economics', 'Accounting', 'Finance', 'Marketing', 'Statistics', 'Business Law', 'Management'],
+  'Medicine & Health': ['Biology', 'Chemistry', 'Anatomy', 'Physiology', 'Biochemistry', 'Psychology', 'Statistics'],
+  'Natural Sciences': ['Biology', 'Chemistry', 'Physics', 'Mathematics', 'Statistics', 'Environmental Science'],
+  'Arts & Humanities': ['English Literature', 'History', 'Philosophy', 'Art & Design', 'Languages', 'Music'],
+  'Social Sciences': ['Psychology', 'Sociology', 'Economics', 'Political Science', 'Statistics', 'Philosophy'],
+};
+
 /* ---- Persistent state (survives reload via localStorage) ---- */
 function usePersistentState(key, initial) {
   const [value, setValue] = React.useState(() => {
@@ -116,6 +127,6 @@ function AvStack({ list, size = 24 }) {
 }
 
 Object.assign(window, {
-  INITIAL_TASKS, TEAM_MEMBERS, GROUPS, GROUP_TASKS, NOTIFICATIONS, SUBJECTS,
+  INITIAL_TASKS, TEAM_MEMBERS, GROUPS, GROUP_TASKS, NOTIFICATIONS, SUBJECTS, MAJOR_PRESETS,
   Avatar, AvStack, usePersistentState, notify, Toasts
 });

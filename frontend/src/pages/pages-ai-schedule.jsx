@@ -85,7 +85,7 @@ function AISchedulePage({ onAdd }) {
 
       <div style={{ height: 24 }} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'flex-start' }}>
+      <div className="ai-grid">
         <div className="ai-day">
           <div className="t-mut" style={{ marginBottom: 12 }}>
             Click a block to mark it complete · {doneCount}/{blocks.length} done

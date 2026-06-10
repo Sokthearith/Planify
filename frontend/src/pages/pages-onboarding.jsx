@@ -60,13 +60,31 @@ function OnboardingFlow({ onDone, onSkip }) {
   const [goals, setGoals] = React.useState(['deadlines', 'focus']);
   const [peak, setPeak] = React.useState('mid');
 
-  const next = () => step < total ? setStep(s => s + 1) : onDone();
+  const [customSubject, setCustomSubject] = React.useState('');
+  const [customMajor, setCustomMajor] = React.useState(false);
+
+  const next = () => step < total
+    ? setStep(s => s + 1)
+    : onDone({ name: name.trim(), year, major, subjects, goals, peak });
   const back = () => setStep(s => Math.max(1, s - 1));
 
   const toggleSubject = s =>
     setSubjects(arr => arr.includes(s) ? arr.filter(x => x !== s) : [...arr, s]);
   const toggleGoal = g =>
     setGoals(arr => arr.includes(g) ? arr.filter(x => x !== g) : [...arr, g]);
+
+  const addCustomSubject = () => {
+    const v = customSubject.trim();
+    if (!v) return;
+    if (!subjects.some(s => s.toLowerCase() === v.toLowerCase())) setSubjects(arr => [...arr, v]);
+    setCustomSubject('');
+  };
+
+  const suggested = MAJOR_PRESETS[major] || [];
+  const moreSubjects = ONBOARD_SUBJECTS.filter(s => !suggested.includes(s));
+  const customPicked = subjects.filter(s => !suggested.includes(s) && !ONBOARD_SUBJECTS.includes(s));
+  const selectAllSuggested = () =>
+    setSubjects(arr => Array.from(new Set([...arr, ...suggested])));
 
   const canContinue =
     step === 1 ? name.trim() :
@@ -112,21 +130,67 @@ function OnboardingFlow({ onDone, onSkip }) {
             </div>
             <div className="field">
               <label>Major</label>
-              <input className="input" value={major} onChange={e => setMajor(e.target.value)} placeholder="e.g. Engineering" />
+              <div className="ob-choice">
+                {Object.keys(MAJOR_PRESETS).map(m => (
+                  <button key={m} className={major === m && !customMajor ? 'on' : ''}
+                          onClick={() => { setMajor(m); setCustomMajor(false); }}>{m}</button>
+                ))}
+                <button className={customMajor ? 'on' : ''} onClick={() => { setCustomMajor(true); setMajor(''); }}>Other…</button>
+              </div>
+              {customMajor ? (
+                <input className="input" autoFocus value={major} onChange={e => setMajor(e.target.value)}
+                       placeholder="Type your major" style={{ marginTop: 10 }} />
+              ) : null}
             </div>
           </div>
         </OnboardStep>
       ) : null}
 
       {step === 3 ? (
-        <OnboardStep eyebrow={'STEP 03 · SUBJECTS'} title={`Pick this term's subjects.`} sub={`Choose every class you'd like Planify to track. You can edit anytime.`}>
-          <div className="ob-tags">
-            {ONBOARD_SUBJECTS.map(s => (
-              <button key={s} className={'ob-tag' + (subjects.includes(s) ? ' on' : '')} onClick={() => toggleSubject(s)}>
-                {subjects.includes(s) ? <IconCheck size={12} /> : <IconPlus size={12} />} {s}
-              </button>
-            ))}
+        <OnboardStep eyebrow={'STEP 03 · SUBJECTS'} title={`Pick this term's subjects.`} sub={`Choose every class you'd like Planify to track — or add your own. You can edit anytime in Settings.`}>
+          {suggested.length > 0 ? (
+            <div>
+              <div className="ob-suggest-head">
+                <span className="ob-meta">Suggested for {major}</span>
+                <button className="ob-link" onClick={selectAllSuggested}>Select all</button>
+              </div>
+              <div className="ob-tags">
+                {suggested.map(s => (
+                  <button key={s} className={'ob-tag suggest' + (subjects.includes(s) ? ' on' : '')} onClick={() => toggleSubject(s)}>
+                    {subjects.includes(s) ? <IconCheck size={12} /> : <IconPlus size={12} />} {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div>
+            {suggested.length > 0 ? <div className="ob-meta" style={{ marginBottom: 10 }}>More subjects</div> : null}
+            <div className="ob-tags">
+              {moreSubjects.map(s => (
+                <button key={s} className={'ob-tag' + (subjects.includes(s) ? ' on' : '')} onClick={() => toggleSubject(s)}>
+                  {subjects.includes(s) ? <IconCheck size={12} /> : <IconPlus size={12} />} {s}
+                </button>
+              ))}
+              {customPicked.map(s => (
+                <button key={s} className="ob-tag on" onClick={() => toggleSubject(s)}>
+                  <IconCheck size={12} /> {s}
+                </button>
+              ))}
+            </div>
           </div>
+
+          <div className="ob-custom">
+            <input
+              className="input" placeholder="Add your own — e.g. Linear Algebra II"
+              value={customSubject} onChange={e => setCustomSubject(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCustomSubject())}
+            />
+            <button className="btn" onClick={addCustomSubject} disabled={!customSubject.trim()}>
+              <IconPlus size={13} /> Add
+            </button>
+          </div>
+
           <div className="ob-meta">
             {subjects.length === 0 ? 'Pick at least one subject.' : `${subjects.length} subject${subjects.length === 1 ? '' : 's'} selected.`}
           </div>
@@ -172,7 +236,7 @@ function OnboardingFlow({ onDone, onSkip }) {
             </div>
             <div className="ob-summary-row">
               <span className="lbl">Subjects</span>
-              <span className="val">{subjects.length} tracked</span>
+              <span className="val">{subjects.slice(0, 3).join(' · ')}{subjects.length > 3 ? ` +${subjects.length - 3} more` : ''}</span>
             </div>
             <div className="ob-summary-row">
               <span className="lbl">Peak window</span>

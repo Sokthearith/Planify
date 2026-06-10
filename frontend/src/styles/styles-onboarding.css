@@ -244,3 +244,63 @@
   min-width: 240px;
   padding: 16px 24px;
 }
+
+/* ---- Smooth step + control transitions ---- */
+@keyframes ob-step-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+.ob-step { animation: ob-step-in .35s cubic-bezier(.2,.8,.2,1) both; }
+
+.onboard-progress .tick { transition: background .25s ease, color .25s ease; }
+.ob-tag, .ob-option, .ob-goal, .ob-choice button {
+  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .12s ease;
+}
+.ob-tag:active, .ob-goal:active, .ob-choice button:active { transform: scale(0.96); }
+.ob-option:hover { transform: translateY(-2px); }
+.ob-option:active { transform: translateY(0) scale(0.98); }
+.onboard-next:not([disabled]):active { transform: scale(0.98); }
+.back-link { transition: color .15s ease; }
+.onboard-skip { transition: color .15s ease; }
+
+/* ---- Subject suggestions / custom add ---- */
+.ob-suggest-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.ob-link {
+  background: none; border: none; padding: 0;
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent); font-weight: 700; cursor: pointer;
+}
+.ob-link:hover { text-decoration: underline; }
+.ob-tag.suggest:not(.on) { border-color: var(--ink); }
+.ob-custom {
+  display: grid; grid-template-columns: 1fr auto; gap: 8px;
+  max-width: 460px;
+}
+
+/* ---- Responsive onboarding ---- */
+@media (max-width: 900px) {
+  .onboard-head { padding: 16px 20px; gap: 14px; }
+  .onboard-progress .tick { width: 36px; padding: 8px 4px; }
+  .onboard-body { padding: 28px 20px; }
+  .onboard-foot { padding: 16px 20px; }
+  .ob-title { font-size: 44px; }
+  .ob-sub { font-size: 15px; }
+  .ob-grid-2 { grid-template-columns: 1fr; }
+  .ob-options { grid-template-columns: repeat(2, 1fr); }
+  .ob-goals { grid-template-columns: 1fr; }
+  .onboard-input { font-size: 28px; }
+  .ob-summary-row { grid-template-columns: 1fr; gap: 4px; padding: 14px 16px; }
+}
+
+@media (max-width: 560px) {
+  .onboard-head { grid-template-columns: auto 1fr; }
+  .onboard-head .onboard-progress { justify-self: end; }
+  .onboard-skip { grid-column: 1 / -1; justify-self: start; padding: 0; }
+  .ob-title { font-size: 34px; }
+  .ob-options { grid-template-columns: 1fr; }
+  .ob-option { min-height: 0; }
+  .onboard-next { min-width: 0; flex: 1; margin-left: 16px; }
+}

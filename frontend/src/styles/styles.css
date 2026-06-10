@@ -853,3 +853,115 @@ input, select, textarea { font-family: inherit; }
 /* progress bars animate between ranges */
 .bar-chart .col .bar { transition: height .35s ease, background .2s; }
 .progressbar > div { transition: width .35s ease; }
+
+/* ---- Smooth buttons & page transitions ---- */
+button {
+  transition: background .15s ease, color .15s ease, border-color .15s ease,
+              opacity .15s ease, transform .12s ease, box-shadow .15s ease;
+}
+.btn:not([disabled]):active,
+.seg button:active,
+.priority button:active,
+.day-pill:active,
+.sb-item:active { transform: scale(0.97); }
+.btn:not([disabled]):hover { box-shadow: 0 2px 10px rgba(0,0,0,0.12); }
+.group-card:hover { transform: translateY(-2px); }
+.group-card:active { transform: translateY(0); }
+
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.page { animation: page-in .22s ease both; }
+
+/* ---- Layout grids (responsive) ---- */
+.home-grid { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: flex-start; }
+.progress-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; }
+.profile-grid { display: grid; grid-template-columns: 320px 1fr; gap: 32px; }
+.ai-grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: flex-start; }
+.week-wrap { overflow-x: auto; }
+
+/* ---- Subject chips (settings manager) ---- */
+.subject-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.subject-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 8px 10px 8px 14px;
+  font-size: 13px; font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.subject-chip button {
+  width: 20px; height: 20px;
+  border: none; background: transparent;
+  color: var(--muted);
+  display: grid; place-items: center;
+  cursor: pointer;
+}
+.subject-chip button:hover { color: var(--accent); }
+
+/* ---- Responsive ---- */
+@media (max-width: 1100px) {
+  .home-grid, .progress-grid, .profile-grid, .ai-grid, .two-col { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .page { padding: 40px 32px 80px; }
+  .t-h1 { font-size: 44px; }
+  .t-display { font-size: 60px; }
+}
+
+@media (max-width: 760px) {
+  /* sidebar becomes a fixed bottom nav */
+  .app { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0;
+    height: auto; width: 100%;
+    flex-direction: row; align-items: center;
+    border-right: none; border-top: 1px solid var(--line);
+    background: #fff;
+    z-index: 90;
+  }
+  .sb-brand, .sb-user { display: none; }
+  .sb-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px 10px;
+    gap: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sb-item {
+    flex: 0 0 auto; width: auto;
+    flex-direction: column; gap: 5px;
+    padding: 8px 12px;
+    font-size: 9.5px; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .sb-item .badge { position: absolute; top: 3px; right: 4px; margin-left: 0; }
+
+  .page { padding: 28px 16px 120px; max-width: none; }
+  .page-head.row { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .headline-row { grid-template-columns: 1fr; gap: 16px; align-items: flex-start; }
+  .t-h1 { font-size: 32px; }
+  .t-h2 { font-size: 22px; }
+  .t-stat { font-size: 40px; }
+
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat { padding: 20px 18px 24px; border-bottom: 1px solid var(--line); }
+  .stat:nth-child(odd) { border-right: 1px solid var(--line); }
+  .stat:nth-child(even) { border-right: none; }
+
+  .grid-3 { grid-template-columns: 1fr; }
+  .week { min-width: 720px; }
+  .month { min-width: 600px; }
+
+  /* hover-revealed controls are always visible on touch layouts */
+  .task .task-del, .notif .dismiss, .day-slot .free, .week .cell .ghost-add { opacity: 1; }
+
+  .toasts { left: 16px; right: 16px; bottom: 96px; transform: none; align-items: stretch; }
+  .modal { max-height: 86vh; }
+  .scrim { padding: 12px; align-items: flex-end; }
+
+  .notif { grid-template-columns: 28px 1fr auto; gap: 12px; padding: 18px 16px; }
+  .notif .time { display: none; }
+
+  .panel-head { padding: 16px 16px; }
+  .panel-pad { padding: 16px; }
+  .task { padding: 16px 16px; gap: 12px; }
+  .task.urgent { padding-left: 13px; }
+}
