@@ -25,6 +25,7 @@ function TaskRow({ t, onToggle, onDelete, onClick }) {
         {onDelete ? (
           <button
             className="task-del"
+            data-sound="delete"
             onClick={e => { e.stopPropagation(); onDelete(t.id); }}
             aria-label="Delete task" title="Delete task"
           ><IconClose size={12} /></button>

@@ -21,6 +21,10 @@ function App() {
   const [showAddTask, setShowAddTask] = React.useState(false);
   const [showCreateGroup, setShowCreateGroup] = React.useState(false);
 
+  React.useEffect(() => {
+    if (showAddTask || showCreateGroup) window.PlanifySound?.play('open');
+  }, [showAddTask, showCreateGroup]);
+
   const goto = (p) => { setOpenGroupId(null); setPage(p); };
   const notifCount = notifications.filter(n => n.unread).length;
 

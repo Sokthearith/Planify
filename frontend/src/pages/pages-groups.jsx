@@ -135,7 +135,7 @@ function GroupDetailPage({ group, tasks, onBack, onToggle, onDelete, onAddTask }
                 <div className="right">
                   {t.priority === 'urgent' ? <span className="tag urgent">Urgent</span> : null}
                   {onDelete ? (
-                    <button className="task-del" onClick={() => onDelete(t.id)} aria-label="Delete task" title="Delete task">
+                    <button className="task-del" data-sound="delete" onClick={() => onDelete(t.id)} aria-label="Delete task" title="Delete task">
                       <IconClose size={12} />
                     </button>
                   ) : null}

@@ -11,7 +11,7 @@ function Modal({ title, onClose, children, footer, width = 540 }) {
       <div className="modal" style={{ maxWidth: width }} onClick={e => e.stopPropagation()}>
         <div className="modal-head">
           <h3 className="t-h3">{title}</h3>
-          <button className="x" onClick={onClose}><IconClose size={16} /></button>
+          <button className="x" data-sound="close" onClick={onClose}><IconClose size={16} /></button>
         </div>
         <div className="modal-body">{children}</div>
         {footer ? <div className="modal-foot">{footer}</div> : null}
@@ -81,8 +81,8 @@ function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd }) {
       onClose={onClose}
       footer={(
         <>
-          <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={submit} disabled={!valid}>Add Task</button>
+          <button className="btn ghost" data-sound="close" onClick={onClose}>Cancel</button>
+          <button className="btn" data-sound="success" onClick={submit} disabled={!valid}>Add Task</button>
         </>
       )}
     >
@@ -157,8 +157,8 @@ function CreateGroupModal({ subjects, onAddSubject, onClose, onCreate }) {
       onClose={onClose}
       footer={(
         <>
-          <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={() => { onCreate({ name, subject, invites }); onClose(); }} disabled={!valid}>Create Group</button>
+          <button className="btn ghost" data-sound="close" onClick={onClose}>Cancel</button>
+          <button className="btn" data-sound="success" onClick={() => { onCreate({ name, subject, invites }); onClose(); }} disabled={!valid}>Create Group</button>
         </>
       )}
     >

@@ -335,6 +335,7 @@ function NotificationsPage({ items, onMarkAll, onToggle, onDismiss }) {
             <div className="time">{n.time}</div>
             <button
               className="dismiss"
+              data-sound="delete"
               onClick={e => { e.stopPropagation(); onDismiss?.(n.id); }}
               aria-label="Dismiss notification" title="Dismiss"
             ><IconClose size={12} /></button>
@@ -401,8 +402,8 @@ function ProfilePage() {
           </div>
           <div style={{ padding: 24, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' }}>
             {dirty ? <span className="t-mut" style={{ marginRight: 'auto' }}>Unsaved changes</span> : null}
-            <button className="btn ghost" onClick={() => setDraft(saved)} disabled={!dirty}>Cancel</button>
-            <button className="btn" onClick={save} disabled={!dirty}>Save changes</button>
+            <button className="btn ghost" data-sound="close" onClick={() => setDraft(saved)} disabled={!dirty}>Cancel</button>
+            <button className="btn" data-sound="success" onClick={save} disabled={!dirty}>Save changes</button>
           </div>
         </div>
       </div>
@@ -458,7 +459,7 @@ function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject }) {
             {subjects.map(s => (
               <span key={s} className="subject-chip">
                 {s}
-                <button onClick={() => onRemoveSubject?.(s)} aria-label={'Remove ' + s} title="Remove subject">
+                <button data-sound="delete" onClick={() => onRemoveSubject?.(s)} aria-label={'Remove ' + s} title="Remove subject">
                   <IconClose size={10} />
                 </button>
               </span>
