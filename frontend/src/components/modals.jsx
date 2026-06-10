@@ -82,7 +82,7 @@ function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd }) {
       footer={(
         <>
           <button className="btn ghost" data-sound="close" onClick={onClose}>Cancel</button>
-          <button className="btn" data-sound="success" onClick={submit} disabled={!valid}>Add Task</button>
+          <button className="btn" onClick={submit} disabled={!valid}>Add Task</button>
         </>
       )}
     >
@@ -158,7 +158,7 @@ function CreateGroupModal({ subjects, onAddSubject, onClose, onCreate }) {
       footer={(
         <>
           <button className="btn ghost" data-sound="close" onClick={onClose}>Cancel</button>
-          <button className="btn" data-sound="success" onClick={() => { onCreate({ name, subject, invites }); onClose(); }} disabled={!valid}>Create Group</button>
+          <button className="btn" onClick={() => { onCreate({ name, subject, invites }); onClose(); }} disabled={!valid}>Create Group</button>
         </>
       )}
     >

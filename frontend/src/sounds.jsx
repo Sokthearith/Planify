@@ -32,36 +32,35 @@ const PlanifySound = (() => {
   };
 
   const patterns = {
-    tap: () => tone(520, 0, 0.055, 'triangle', 0.025),
+    tap: () => tone(520, 0, 0.045, 'triangle', 0.018),
     nav: () => {
-      tone(360, 0, 0.06, 'triangle', 0.025);
-      tone(540, 0.04, 0.08, 'triangle', 0.022);
+      tone(360, 0, 0.055, 'triangle', 0.018);
+      tone(540, 0.04, 0.07, 'triangle', 0.016);
     },
     toggle: () => {
-      tone(440, 0, 0.05, 'square', 0.018);
-      tone(620, 0.035, 0.065, 'triangle', 0.022);
+      tone(440, 0, 0.045, 'square', 0.012);
+      tone(620, 0.035, 0.055, 'triangle', 0.016);
     },
-    type: () => tone(760, 0, 0.028, 'triangle', 0.012),
     open: () => {
-      tone(420, 0, 0.075, 'sine', 0.024);
-      tone(660, 0.045, 0.09, 'sine', 0.026);
+      tone(420, 0, 0.065, 'sine', 0.018);
+      tone(660, 0.045, 0.08, 'sine', 0.02);
     },
     close: () => {
-      tone(520, 0, 0.05, 'sine', 0.023);
-      tone(300, 0.035, 0.07, 'sine', 0.022);
+      tone(520, 0, 0.045, 'sine', 0.017);
+      tone(300, 0.035, 0.06, 'sine', 0.016);
     },
     success: () => {
-      tone(460, 0, 0.07, 'triangle', 0.026);
-      tone(690, 0.055, 0.095, 'triangle', 0.028);
-      tone(920, 0.13, 0.12, 'sine', 0.022);
+      tone(460, 0, 0.06, 'triangle', 0.018);
+      tone(690, 0.055, 0.085, 'triangle', 0.02);
+      tone(920, 0.13, 0.1, 'sine', 0.016);
     },
     delete: () => {
-      tone(260, 0, 0.075, 'sawtooth', 0.018);
-      tone(180, 0.055, 0.1, 'sine', 0.02);
+      tone(260, 0, 0.065, 'sawtooth', 0.012);
+      tone(180, 0.055, 0.085, 'sine', 0.015);
     },
     alert: () => {
-      tone(740, 0, 0.08, 'square', 0.016);
-      tone(520, 0.07, 0.08, 'square', 0.014);
+      tone(740, 0, 0.07, 'square', 0.011);
+      tone(520, 0.07, 0.07, 'square', 0.01);
     },
   };
 
@@ -102,13 +101,6 @@ const PlanifySound = (() => {
       if (e.target.matches('select,input[type="checkbox"],input[type="range"],input[type="date"],input[type="color"]')) {
         play('toggle');
       }
-    }, true);
-
-    document.addEventListener('keydown', (e) => {
-      if (!e.target.matches('input,textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'Enter') play('success');
-      else if (e.key === 'Escape') play('close');
-      else if (e.key.length === 1 || e.key === 'Backspace') play('type');
     }, true);
 
     window.addEventListener('planify:toast', () => play('success'));

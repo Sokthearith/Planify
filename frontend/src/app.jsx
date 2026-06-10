@@ -25,7 +25,17 @@ function App() {
     if (showAddTask || showCreateGroup) window.PlanifySound?.play('open');
   }, [showAddTask, showCreateGroup]);
 
-  const goto = (p) => { setOpenGroupId(null); setPage(p); };
+  const goto = (p) => {
+    setOpenGroupId(null);
+    setAuthView('app');
+    setPage(p);
+  };
+  const openProfile = () => goto('profile');
+  React.useEffect(() => {
+    const fn = () => openProfile();
+    window.addEventListener('planify:open-profile', fn);
+    return () => window.removeEventListener('planify:open-profile', fn);
+  }, []);
   const notifCount = notifications.filter(n => n.unread).length;
 
   const toggleTask = (id) => setTasks(arr => arr.map(t => t.id === id ? { ...t, done: !t.done } : t));
@@ -245,6 +255,7 @@ function App() {
       <Sidebar
         current={currentGroup ? 'groups' : page}
         onNav={goto}
+        onProfile={openProfile}
         notifCount={notifCount}
         onGoLanding={() => setAuthView('landing')}
       />

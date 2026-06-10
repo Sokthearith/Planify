@@ -6,11 +6,6 @@ function LandingPage({ onSignIn, onGetStarted, auth, onOpenApp, onSignOut }) {
     <div className="landing">
       <header className="landing-nav">
         <div className="brand">Planify<span className="dot"></span></div>
-        <nav className="links">
-          <a href="#features">Features</a>
-          <a href="#how">How it works</a>
-          <a href="#stats">Stats</a>
-        </nav>
         <div className="ctas">
           {auth ? (
             <>

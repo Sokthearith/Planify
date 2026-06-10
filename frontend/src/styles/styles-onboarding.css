@@ -14,6 +14,12 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 24px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255,255,255,.94);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
 }
 .onboard-head .brand {
   font-weight: 800; font-size: 20px; letter-spacing: -0.03em;
@@ -25,6 +31,8 @@
 .onboard-progress {
   display: inline-flex;
   border: 1px solid var(--line);
+  max-width: 100%;
+  overflow: hidden;
 }
 .onboard-progress .tick {
   width: 56px;
@@ -69,7 +77,7 @@
   margin-bottom: 18px;
 }
 .ob-title {
-  font-size: 72px; font-weight: 800; letter-spacing: -0.045em;
+  font-size: clamp(38px, 7vw, 72px); font-weight: 800; letter-spacing: -0.045em;
   line-height: 0.95; margin: 0;
 }
 .ob-sub {
@@ -116,6 +124,7 @@
   padding: 11px 16px;
   font-size: 13px; font-weight: 600;
   color: var(--ink);
+  min-height: 42px;
 }
 .ob-choice button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .ob-choice button:hover:not(.on) { background: var(--bg-sub); }
@@ -131,6 +140,7 @@
   font-size: 13px; font-weight: 600;
   color: var(--ink);
   letter-spacing: 0;
+  min-height: 42px;
 }
 .ob-tag:hover { background: var(--bg-sub); }
 .ob-tag.on {
@@ -151,6 +161,7 @@
   text-align: left;
   display: flex; flex-direction: column; gap: 8px;
   min-height: 130px;
+  min-width: 0;
 }
 .ob-option:hover { border-color: var(--ink); }
 .ob-option.on {
@@ -180,6 +191,7 @@
   background: #fff;
   padding: 16px 18px;
   text-align: left;
+  min-width: 0;
 }
 .ob-goal:hover { border-color: var(--ink); }
 .ob-goal.on { border-color: var(--ink); background: var(--bg-sub); }
@@ -232,6 +244,9 @@
   border-top: 1px solid var(--line);
   display: flex; justify-content: space-between; align-items: center;
   background: #fff;
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
 }
 .back-link {
   background: none; border: none; padding: 0;
@@ -296,11 +311,142 @@
 }
 
 @media (max-width: 560px) {
-  .onboard-head { grid-template-columns: auto 1fr; }
+  .onboard-head { grid-template-columns: 1fr; align-items: stretch; }
+  .onboard-head .brand { justify-self: start; }
   .onboard-head .onboard-progress { justify-self: end; }
+  .onboard-progress {
+    justify-self: stretch;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+  }
+  .onboard-progress .tick { width: auto; }
   .onboard-skip { grid-column: 1 / -1; justify-self: start; padding: 0; }
+  .onboard-body { padding: 24px 16px; align-items: flex-start; }
   .ob-title { font-size: 34px; }
+  .ob-sub { margin: 14px 0 26px; }
   .ob-options { grid-template-columns: 1fr; }
   .ob-option { min-height: 0; }
-  .onboard-next { min-width: 0; flex: 1; margin-left: 16px; }
+  .onboard-foot {
+    gap: 14px;
+    padding: 14px 16px;
+  }
+  .onboard-next { min-width: 0; flex: 1; margin-left: 0; }
+  .back-link { min-height: 42px; }
+  .ob-grid-2 { gap: 20px; }
+  .ob-custom {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+  .ob-custom .btn { width: 100%; }
+  .ob-tags { gap: 7px; }
+  .ob-tag {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+  .ob-summary-row .val {
+    overflow-wrap: anywhere;
+  }
+  .ob-ready-card { padding: 22px; }
+  .ob-ready-title { font-size: 20px; }
+}
+
+@media (max-width: 380px) {
+  .onboard-progress .tick span { font-size: 0; }
+  .onboard-progress .tick span::after {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .onboard-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .back-link {
+    justify-content: center;
+  }
+}
+
+/* ---- Final responsive safety layer ---- */
+.onboard,
+.onboard * {
+  min-width: 0;
+}
+
+.onboard-head {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 14px;
+  padding: 16px clamp(14px, 4vw, 24px);
+}
+
+.onboard-progress {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  width: 100%;
+}
+
+.onboard-progress .tick {
+  width: auto;
+}
+
+.onboard-skip {
+  justify-self: start;
+}
+
+.onboard-body {
+  align-items: flex-start;
+  padding: clamp(24px, 5vw, 40px) clamp(16px, 4vw, 40px);
+}
+
+.ob-step {
+  max-width: 760px;
+}
+
+.ob-title {
+  font-size: clamp(34px, 9vw, 64px);
+}
+
+.ob-grid-2,
+.ob-options,
+.ob-goals {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+.ob-custom {
+  grid-template-columns: minmax(0, 1fr) auto;
+  max-width: 100%;
+}
+
+.ob-summary-row {
+  grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
+}
+
+.onboard-foot {
+  gap: 14px;
+  padding: 14px clamp(14px, 4vw, 24px);
+}
+
+@media (max-width: 560px) {
+  .ob-custom,
+  .ob-summary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ob-custom .btn,
+  .onboard-next {
+    width: 100%;
+  }
+
+  .onboard-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .back-link {
+    justify-content: center;
+    min-height: 42px;
+  }
 }

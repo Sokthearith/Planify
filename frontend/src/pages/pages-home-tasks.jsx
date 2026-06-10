@@ -189,7 +189,7 @@ function TasksPage({ tasks, onToggle, onDelete, onAdd }) {
         <button className="btn" onClick={onAdd}><IconPlus size={14} /> New task</button>
       </div>
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
+      <div className="toolbar-row" style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
         <div style={{ flex: 1, position: 'relative' }}>
           <input className="input" placeholder="Search tasks…" value={q} onChange={e => setQ(e.target.value)} style={{ paddingLeft: 42 }} />
           <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }}>

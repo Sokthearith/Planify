@@ -1,6 +1,15 @@
 /* Sidebar */
 
-function Sidebar({ current, onNav, notifCount, onGoLanding }) {
+function Sidebar({ current, onNav, onProfile, notifCount, onGoLanding }) {
+  const navTo = (id) => {
+    onNav?.(id);
+  };
+  const openProfile = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    onProfile?.();
+    window.dispatchEvent(new CustomEvent('planify:open-profile'));
+  };
   const items = [
     { id: 'home', label: 'Home', Icon: IconHome },
     { id: 'tasks', label: 'Tasks', Icon: IconTasks },
@@ -26,7 +35,7 @@ function Sidebar({ current, onNav, notifCount, onGoLanding }) {
           <button
             key={it.id}
             className={'sb-item' + (current === it.id ? ' active' : '')}
-            onClick={() => onNav(it.id)}
+            onClick={it.id === 'profile' ? openProfile : () => navTo(it.id)}
           >
             <span className="icon"><it.Icon size={16} /></span>
             <span>{it.label}</span>
@@ -34,13 +43,22 @@ function Sidebar({ current, onNav, notifCount, onGoLanding }) {
           </button>
         ))}
       </nav>
-      <div className="sb-user">
+      <button
+        type="button"
+        className={'sb-user' + (current === 'profile' ? ' active' : '')}
+        onClick={openProfile}
+        onPointerUp={openProfile}
+        data-sound="nav"
+        aria-label="Open profile"
+        title="Open profile"
+      >
         <span className="avatar">JW</span>
         <div>
           <div className="name">Josh Williams</div>
           <div className="sub">First Year · Engineering</div>
+          <div className="profile-link">View profile</div>
         </div>
-      </div>
+      </button>
     </aside>
   );
 }

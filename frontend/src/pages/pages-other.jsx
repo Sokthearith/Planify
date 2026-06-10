@@ -400,10 +400,10 @@ function ProfilePage() {
             <div className="field"><label>Major</label><input className="input" value={draft.major} onChange={e => set('major', e.target.value)} /></div>
             <div className="field" style={{ gridColumn: '1 / -1' }}><label>Bio</label><textarea className="textarea" rows={3} value={draft.bio} onChange={e => set('bio', e.target.value)} /></div>
           </div>
-          <div style={{ padding: 24, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' }}>
+          <div className="profile-actions" style={{ padding: 24, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' }}>
             {dirty ? <span className="t-mut" style={{ marginRight: 'auto' }}>Unsaved changes</span> : null}
             <button className="btn ghost" data-sound="close" onClick={() => setDraft(saved)} disabled={!dirty}>Cancel</button>
-            <button className="btn" data-sound="success" onClick={save} disabled={!dirty}>Save changes</button>
+            <button className="btn" onClick={save} disabled={!dirty}>Save changes</button>
           </div>
         </div>
       </div>
@@ -466,7 +466,7 @@ function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject }) {
             ))}
             {subjects.length === 0 ? <span className="t-mut">No subjects yet — add one below.</span> : null}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 14, maxWidth: 440 }}>
+          <div className="subject-add-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 14, maxWidth: 440 }}>
             <input
               className="input" placeholder="Add a subject — e.g. Linear Algebra II"
               value={newSubject} onChange={e => setNewSubject(e.target.value)}
@@ -481,7 +481,7 @@ function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject }) {
             <div className="t-mut" style={{ marginTop: 4 }}>{s.sub}</div>
             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {s.items.map(it => (
-                <div key={it.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div key={it.k} className="setting-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 13.5, fontWeight: 600 }}>{it.label}</span>
                   <button
                     className={'switch' + (prefs[it.k] ? ' on' : '')}
