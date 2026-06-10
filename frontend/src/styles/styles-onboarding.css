@@ -258,6 +258,10 @@
 .onboard-next {
   min-width: 240px;
   padding: 16px 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
 
 /* ---- Smooth step + control transitions ---- */
