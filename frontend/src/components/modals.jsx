@@ -20,7 +20,45 @@ function Modal({ title, onClose, children, footer, width = 540 }) {
   );
 }
 
-function AddTaskModal({ context, onClose, onAdd }) {
+/* Subject dropdown with an inline "add new" mode */
+function SubjectSelect({ value, onChange, subjects, onAddSubject }) {
+  const list = subjects || SUBJECTS;
+  const [adding, setAdding] = React.useState(false);
+  const [draft, setDraft] = React.useState('');
+  const confirm = () => {
+    const v = draft.trim();
+    if (!v) return;
+    onAddSubject?.(v);
+    onChange(v);
+    setAdding(false);
+    setDraft('');
+  };
+  if (adding) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8 }}>
+        <input
+          className="input" autoFocus placeholder="New subject name"
+          value={draft} onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirm(); } if (e.key === 'Escape') setAdding(false); }}
+        />
+        <button className="btn" onClick={confirm} disabled={!draft.trim()}>Add</button>
+        <button className="btn ghost" onClick={() => { setAdding(false); setDraft(''); }}>Cancel</button>
+      </div>
+    );
+  }
+  return (
+    <select
+      className="select" value={value}
+      onChange={e => e.target.value === '__new__' ? setAdding(true) : onChange(e.target.value)}
+    >
+      <option value="">Select subject</option>
+      {list.map(s => <option key={s}>{s}</option>)}
+      <option value="__new__">＋ Add new subject…</option>
+    </select>
+  );
+}
+
+function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd }) {
   const [title, setTitle] = React.useState('');
   const [due, setDue] = React.useState('');
   const [subject, setSubject] = React.useState(context?.subject || '');
@@ -55,10 +93,7 @@ function AddTaskModal({ context, onClose, onAdd }) {
       {!context?.group ? (
         <div className="field">
           <label>Subject</label>
-          <select className="select" value={subject} onChange={e => setSubject(e.target.value)}>
-            <option value="">Select subject</option>
-            {SUBJECTS.map(s => <option key={s}>{s}</option>)}
-          </select>
+          <SubjectSelect value={subject} onChange={setSubject} subjects={subjects} onAddSubject={onAddSubject} />
         </div>
       ) : null}
       <div className="field">
@@ -104,7 +139,7 @@ function AddTaskModal({ context, onClose, onAdd }) {
   );
 }
 
-function CreateGroupModal({ onClose, onCreate }) {
+function CreateGroupModal({ subjects, onAddSubject, onClose, onCreate }) {
   const [name, setName] = React.useState('');
   const [subject, setSubject] = React.useState('');
   const [invite, setInvite] = React.useState('');
@@ -133,10 +168,7 @@ function CreateGroupModal({ onClose, onCreate }) {
       </div>
       <div className="field">
         <label>Subject</label>
-        <select className="select" value={subject} onChange={e => setSubject(e.target.value)}>
-          <option value="">Select subject</option>
-          {SUBJECTS.map(s => <option key={s}>{s}</option>)}
-        </select>
+        <SubjectSelect value={subject} onChange={setSubject} subjects={subjects} onAddSubject={onAddSubject} />
       </div>
       <div className="field">
         <label>Invite members</label>
@@ -158,4 +190,4 @@ function CreateGroupModal({ onClose, onCreate }) {
   );
 }
 
-Object.assign(window, { AddTaskModal, CreateGroupModal, Modal });
+Object.assign(window, { AddTaskModal, CreateGroupModal, Modal, SubjectSelect });

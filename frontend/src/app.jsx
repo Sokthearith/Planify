@@ -17,6 +17,7 @@ function App() {
   const [groupTasks, setGroupTasks] = usePersistentState('groupTasks', GROUP_TASKS);
   const [notifications, setNotifications] = usePersistentState('notifications', NOTIFICATIONS);
   const [groups, setGroups] = usePersistentState('groups', GROUPS);
+  const [subjects, setSubjects] = usePersistentState('subjects', SUBJECTS);
   const [showAddTask, setShowAddTask] = React.useState(false);
   const [showCreateGroup, setShowCreateGroup] = React.useState(false);
 
@@ -77,6 +78,40 @@ function App() {
   const toggleNotif = (id) => setNotifications(arr => arr.map(n => n.id === id ? { ...n, unread: !n.unread } : n));
   const dismissNotif = (id) => setNotifications(arr => arr.filter(n => n.id !== id));
 
+  const addSubject = (name) => {
+    const v = (name || '').trim();
+    if (!v) return;
+    setSubjects(arr => arr.some(s => s.toLowerCase() === v.toLowerCase()) ? arr : [...arr, v]);
+    notify('Subject added: ' + v);
+  };
+  const removeSubject = (name) => {
+    setSubjects(arr => arr.filter(s => s !== name));
+    notify('Subject removed');
+  };
+
+  // Onboarding hands back name/major/subjects — fold them into the app state
+  const finishOnboarding = (data) => {
+    if (data) {
+      if (data.subjects && data.subjects.length) setSubjects(data.subjects);
+      try {
+        const raw = localStorage.getItem('planify:profile');
+        const prof = raw ? JSON.parse(raw) : {
+          name: 'Josh Williams', email: 'josh@university.edu', year: 'First Year',
+          major: 'Engineering', bio: 'First-year engineering student. Likes calculus on a good day.',
+        };
+        localStorage.setItem('planify:profile', JSON.stringify({
+          ...prof,
+          name: data.name || prof.name,
+          year: data.year || prof.year,
+          major: data.major || prof.major,
+        }));
+      } catch (e) {}
+      notify('Welcome to Planify' + (data.name ? ', ' + data.name : '') + '!');
+    }
+    setIsAuthed(true);
+    setAuthView('app');
+  };
+
   // Group cards reflect live task state once a group has a task list
   const groupsView = groups.map(g => {
     const ts = groupTasks[g.id];
@@ -131,7 +166,7 @@ function App() {
   } else if (page === 'profile') {
     content = <ProfilePage />;
   } else if (page === 'settings') {
-    content = <SettingsPage />;
+    content = <SettingsPage subjects={subjects} onAddSubject={addSubject} onRemoveSubject={removeSubject} />;
   }
 
   // Auth flow: show landing / signin / register before the app
@@ -166,7 +201,7 @@ function App() {
     } else if (authView === 'onboarding') {
       authContent = (
         <OnboardingFlow
-          onDone={() => { setIsAuthed(true); setAuthView('app'); }}
+          onDone={finishOnboarding}
           onSkip={() => { setIsAuthed(true); setAuthView('app'); }}
         />
       );
@@ -214,13 +249,15 @@ function App() {
       {showAddTask ? (
         <AddTaskModal
           context={currentGroup ? { group: currentGroup.title, subject: currentGroup.subject } : null}
+          subjects={subjects}
+          onAddSubject={addSubject}
           onClose={() => setShowAddTask(false)}
           onAdd={(data) => currentGroup ? addGroupTask(currentGroup.id, data) : addTask(data)}
         />
       ) : null}
 
       {showCreateGroup ? (
-        <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={createGroup} />
+        <CreateGroupModal subjects={subjects} onAddSubject={addSubject} onClose={() => setShowCreateGroup(false)} onCreate={createGroup} />
       ) : null}
 
       <Toasts />

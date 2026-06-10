@@ -94,7 +94,7 @@ function HomePage({ tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) {
 
       <div style={{ height: 56 }} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24, alignItems: 'flex-start' }}>
+      <div className="home-grid">
         <div className="panel">
           <div className="panel-head">
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>

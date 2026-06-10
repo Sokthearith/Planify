@@ -44,6 +44,7 @@ function SchedulePage({ onAdd }) {
       </div>
 
       {view === 'week' ? (
+        <div className="week-wrap">
         <div className="week">
           <div className="hd" />
           {days.map(d => (
@@ -82,6 +83,7 @@ function SchedulePage({ onAdd }) {
               })}
             </React.Fragment>
           ))}
+        </div>
         </div>
       ) : null}
 
@@ -124,6 +126,7 @@ function SchedulePage({ onAdd }) {
       ) : null}
 
       {view === 'month' ? (
+        <div className="week-wrap">
         <div className="month">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
             <div key={d} className="hd">{d}</div>
@@ -148,6 +151,7 @@ function SchedulePage({ onAdd }) {
               </div>
             );
           })}
+        </div>
         </div>
       ) : null}
 
@@ -235,7 +239,7 @@ function ProgressPage() {
 
       <div style={{ height: 40 }} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 24 }}>
+      <div className="progress-grid">
         <div className="panel">
           <div className="panel-head">
             <h2 className="t-h2">Completion</h2>
@@ -359,7 +363,7 @@ function ProfilePage() {
         <div className="page-eyebrow">Account</div>
         <h1 className="t-h1" style={{ marginTop: 8 }}>Profile</h1>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32 }}>
+      <div className="profile-grid">
         <div className="panel" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
           <div className="avatar" style={{ width: 96, height: 96, fontSize: 32, borderRadius: '50%' }}>{initials}</div>
           <div>
@@ -406,11 +410,18 @@ function ProfilePage() {
   );
 }
 
-function SettingsPage() {
+function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject }) {
   const [prefs, setPrefs] = usePersistentState('settings', {
     push: true, email: true, digest: false, ai: true, calendar: false, publicProfile: false,
   });
   const toggle = (k) => setPrefs(p => ({ ...p, [k]: !p[k] }));
+  const [newSubject, setNewSubject] = React.useState('');
+  const addSubject = () => {
+    const v = newSubject.trim();
+    if (!v) return;
+    onAddSubject?.(v);
+    setNewSubject('');
+  };
   const sections = [
     {
       title: 'Notifications', sub: 'Push, email and weekly digest preferences',
@@ -440,8 +451,31 @@ function SettingsPage() {
         <h1 className="t-h1" style={{ marginTop: 8 }}>Settings</h1>
       </div>
       <div className="panel">
-        {sections.map((s, i) => (
-          <div key={s.title} style={{ padding: '24px 28px', borderTop: i ? '1px solid var(--line)' : 'none' }}>
+        <div style={{ padding: '24px 28px' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>Subjects</div>
+          <div className="t-mut" style={{ marginTop: 4 }}>The subjects available across tasks, groups and schedules</div>
+          <div className="subject-chips" style={{ marginTop: 16 }}>
+            {subjects.map(s => (
+              <span key={s} className="subject-chip">
+                {s}
+                <button onClick={() => onRemoveSubject?.(s)} aria-label={'Remove ' + s} title="Remove subject">
+                  <IconClose size={10} />
+                </button>
+              </span>
+            ))}
+            {subjects.length === 0 ? <span className="t-mut">No subjects yet — add one below.</span> : null}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 14, maxWidth: 440 }}>
+            <input
+              className="input" placeholder="Add a subject — e.g. Linear Algebra II"
+              value={newSubject} onChange={e => setNewSubject(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSubject())}
+            />
+            <button className="btn" onClick={addSubject} disabled={!newSubject.trim()}><IconPlus size={13} /> Add</button>
+          </div>
+        </div>
+        {sections.map((s) => (
+          <div key={s.title} style={{ padding: '24px 28px', borderTop: '1px solid var(--line)' }}>
             <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{s.title}</div>
             <div className="t-mut" style={{ marginTop: 4 }}>{s.sub}</div>
             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
