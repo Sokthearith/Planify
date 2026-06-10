@@ -57,6 +57,44 @@ const NOTIFICATIONS = [
 
 const SUBJECTS = ['Mathematics', 'Computer Science', 'Physics', 'Chemistry', 'English Literature', 'Philosophy', 'Economics', 'Biology'];
 
+/* ---- Persistent state (survives reload via localStorage) ---- */
+function usePersistentState(key, initial) {
+  const [value, setValue] = React.useState(() => {
+    try {
+      const raw = localStorage.getItem('planify:' + key);
+      return raw ? JSON.parse(raw) : initial;
+    } catch (e) { return initial; }
+  });
+  React.useEffect(() => {
+    try { localStorage.setItem('planify:' + key, JSON.stringify(value)); } catch (e) {}
+  }, [key, value]);
+  return [value, setValue];
+}
+
+/* ---- Toasts ---- */
+function notify(message) {
+  window.dispatchEvent(new CustomEvent('planify:toast', { detail: { message } }));
+}
+
+function Toasts() {
+  const [items, setItems] = React.useState([]);
+  React.useEffect(() => {
+    const fn = e => {
+      const id = Date.now() + Math.random();
+      setItems(t => [...t, { id, message: e.detail.message }]);
+      setTimeout(() => setItems(t => t.filter(x => x.id !== id)), 2600);
+    };
+    window.addEventListener('planify:toast', fn);
+    return () => window.removeEventListener('planify:toast', fn);
+  }, []);
+  if (items.length === 0) return null;
+  return (
+    <div className="toasts">
+      {items.map(t => <div key={t.id} className="toast"><IconCheck size={12} /> {t.message}</div>)}
+    </div>
+  );
+}
+
 /* ---- Avatar ---- */
 function Avatar({ initials, size = 28 }) {
   const palette = {
@@ -79,5 +117,5 @@ function AvStack({ list, size = 24 }) {
 
 Object.assign(window, {
   INITIAL_TASKS, TEAM_MEMBERS, GROUPS, GROUP_TASKS, NOTIFICATIONS, SUBJECTS,
-  Avatar, AvStack
+  Avatar, AvStack, usePersistentState, notify, Toasts
 });

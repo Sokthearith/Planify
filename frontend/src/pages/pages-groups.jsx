@@ -58,7 +58,12 @@ function GroupsPage({ groups, onOpen, onCreate }) {
   );
 }
 
-function GroupDetailPage({ group, tasks, onBack, onToggle, onAddTask }) {
+function GroupDetailPage({ group, tasks, onBack, onToggle, onDelete, onAddTask }) {
+  const copyInvite = () => {
+    const link = 'https://planify.app/join/' + group.id;
+    if (navigator.clipboard) navigator.clipboard.writeText(link).catch(() => {});
+    notify('Invite link copied');
+  };
   return (
     <div className="page">
       <div className="page-eyebrow">
@@ -71,7 +76,7 @@ function GroupDetailPage({ group, tasks, onBack, onToggle, onAddTask }) {
           <h1 className="t-h1" style={{ marginTop: 14 }}>{group.title}</h1>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn ghost"><IconAddUser size={14} /> Invite</button>
+          <button className="btn ghost" onClick={copyInvite}><IconAddUser size={14} /> Invite</button>
           <button className="btn" onClick={onAddTask}><IconPlus size={14} /> Add task</button>
         </div>
       </div>
@@ -100,11 +105,18 @@ function GroupDetailPage({ group, tasks, onBack, onToggle, onAddTask }) {
             <button className="btn iconbtn" onClick={onAddTask}><IconPlus size={14} /></button>
           </div>
           <div>
-            {tasks.map(t => (
+            {tasks.length === 0 ? (
+              <div style={{ padding: 48, textAlign: 'center', color: 'var(--muted)' }}>
+                <div className="t-eyebrow">No tasks yet</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 10, color: 'var(--ink)' }}>Add the first shared task</div>
+                <button className="btn sm" style={{ marginTop: 16 }} onClick={onAddTask}><IconPlus size={12} /> Add task</button>
+              </div>
+            ) : tasks.map(t => (
               <div key={t.id} className={'task' + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}>
                 <button
                   className={'checkbox' + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}
                   onClick={() => onToggle(t.id)}
+                  aria-label="Toggle done"
                 >
                   {t.done ? <IconCheck size={12} /> : null}
                 </button>
@@ -122,6 +134,11 @@ function GroupDetailPage({ group, tasks, onBack, onToggle, onAddTask }) {
                 </div>
                 <div className="right">
                   {t.priority === 'urgent' ? <span className="tag urgent">Urgent</span> : null}
+                  {onDelete ? (
+                    <button className="task-del" onClick={() => onDelete(t.id)} aria-label="Delete task" title="Delete task">
+                      <IconClose size={12} />
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}

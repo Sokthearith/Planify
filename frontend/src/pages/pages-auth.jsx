@@ -179,6 +179,14 @@ function LandingPage({ onSignIn, onGetStarted, auth, onOpenApp, onSignOut }) {
 function SignInPage({ onBack, onSubmit, onSwitchToRegister }) {
   const [email, setEmail] = React.useState('');
   const [pw, setPw] = React.useState('');
+  const [error, setError] = React.useState('');
+  const submit = e => {
+    e.preventDefault();
+    if (!email.trim() || !pw) { setError('Enter your email and password to continue.'); return; }
+    if (!/\S+@\S+\.\S+/.test(email)) { setError('That email address doesn’t look right.'); return; }
+    setError('');
+    onSubmit();
+  };
   return (
     <div className="auth">
       <div className="auth-left">
@@ -199,7 +207,7 @@ function SignInPage({ onBack, onSubmit, onSwitchToRegister }) {
         <h1 className="title">Sign in.</h1>
         <p className="sub">Enter your credentials to continue.</p>
 
-        <form className="form" onSubmit={e => { e.preventDefault(); onSubmit(); }}>
+        <form className="form" onSubmit={submit}>
           <div className="field">
             <label>Email</label>
             <input className="input" type="email" placeholder="josh@university.edu" value={email} onChange={e => setEmail(e.target.value)} autoFocus />
@@ -208,6 +216,10 @@ function SignInPage({ onBack, onSubmit, onSwitchToRegister }) {
             <label>Password</label>
             <input className="input" type="password" placeholder="••••••••" value={pw} onChange={e => setPw(e.target.value)} />
           </div>
+
+          {error ? (
+            <div style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600 }}>{error}</div>
+          ) : null}
 
           <div className="row-between">
             <label className="check-inline">
