@@ -12,8 +12,10 @@ function AISchedulePage({ onAdd }) {
   ];
   const [active, setActive] = React.useState(2); // Wed
   const [regenSpin, setRegenSpin] = React.useState(false);
+  const [seed, setSeed] = React.useState(0);
+  const [doneBlocks, setDoneBlocks] = React.useState({});
 
-  const blocks = [
+  const allBlocks = [
     { time: '09:00', title: 'Calculus · Problem Set 5', subj: 'Mathematics', tag: 'Deep focus', urgent: true, kind: 'busy' },
     { time: '10:30', title: 'Short break', subj: 'Recharge', kind: 'break' },
     { time: '11:00', title: 'Read Chapters 7–9', subj: 'Physics', tag: 'Reading', kind: 'busy' },
@@ -25,9 +27,23 @@ function AISchedulePage({ onAdd }) {
     { time: '19:00', title: 'Reflection · close the day', subj: 'Planning', kind: 'busy' },
   ];
 
+  // Vary the day plan per selected day + regeneration seed: rotate the work
+  // blocks while keeping the time slots fixed.
+  const times = allBlocks.map(b => b.time);
+  const shift = (active + seed) % allBlocks.length;
+  const rotated = allBlocks.slice(shift).concat(allBlocks.slice(0, shift));
+  const blocks = rotated.map((b, i) => ({ ...b, time: times[i] }));
+  const blockKey = (b) => active + '-' + seed + '-' + b.title;
+  const toggleBlock = (b) => setDoneBlocks(d => ({ ...d, [blockKey(b)]: !d[blockKey(b)] }));
+  const doneCount = blocks.filter(b => doneBlocks[blockKey(b)]).length;
+
   const regenerate = () => {
     setRegenSpin(true);
-    setTimeout(() => setRegenSpin(false), 700);
+    setTimeout(() => {
+      setRegenSpin(false);
+      setSeed(s => s + 1);
+      notify('Schedule regenerated');
+    }, 700);
   };
 
   return (
@@ -71,19 +87,30 @@ function AISchedulePage({ onAdd }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'flex-start' }}>
         <div className="ai-day">
-          {blocks.map((b, i) => (
-            <div key={i} className="ai-row">
-              <div className="time">{b.time}</div>
-              <div className={'block ' + b.kind + (b.urgent ? ' urgent' : '')}>
-                <div className="subj">
-                  <span>{b.subj}</span>
-                  {b.tag ? <><span>·</span><span>{b.tag}</span></> : null}
+          <div className="t-mut" style={{ marginBottom: 12 }}>
+            Click a block to mark it complete · {doneCount}/{blocks.length} done
+          </div>
+          {blocks.map((b, i) => {
+            const isDone = !!doneBlocks[blockKey(b)];
+            return (
+              <div key={i} className="ai-row">
+                <div className="time">{b.time}</div>
+                <div
+                  className={'block ' + b.kind + (b.urgent ? ' urgent' : '') + (isDone ? ' done' : '')}
+                  onClick={() => toggleBlock(b)}
+                  title={isDone ? 'Mark as not done' : 'Mark as done'}
+                >
+                  <div className="subj">
+                    <span>{b.subj}</span>
+                    {b.tag ? <><span>·</span><span>{b.tag}</span></> : null}
+                  </div>
+                  <div className="title">{b.title}</div>
+                  {isDone ? <div className="badge-end" style={{ background: 'var(--ok)' }}>DONE</div> :
+                   b.urgent ? <div className="badge-end">DEADLINE</div> : null}
                 </div>
-                <div className="title">{b.title}</div>
-                {b.urgent ? <div className="badge-end">DEADLINE</div> : null}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

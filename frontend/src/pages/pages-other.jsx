@@ -1,6 +1,8 @@
 /* Schedule, Progress, Notifications, Profile, Settings */
 
 function SchedulePage({ onAdd }) {
+  const [view, setView] = React.useState('week');
+  const [activeDay, setActiveDay] = React.useState('Wed');
   const days = [
     { d: 'Mon', n: 2 }, { d: 'Tue', n: 3 }, { d: 'Wed', n: 4, today: true }, { d: 'Thu', n: 5 },
     { d: 'Fri', n: 6 }, { d: 'Sat', n: 7 }, { d: 'Sun', n: 8 },
@@ -21,6 +23,8 @@ function SchedulePage({ onAdd }) {
     'Fri-15:00': { title: 'Essay draft', subj: 'English' },
     'Sun-11:00': { title: 'Weekly review', subj: 'Planning' },
   };
+  const countFor = (d) => hours.filter(h => events[d + '-' + h]).length;
+  const activeInfo = days.find(d => d.d === activeDay);
 
   return (
     <div className="page">
@@ -31,41 +35,121 @@ function SchedulePage({ onAdd }) {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <div className="seg">
-            <button>DAY</button>
-            <button className="on">WEEK</button>
-            <button>MONTH</button>
+            {['day', 'week', 'month'].map(v => (
+              <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{v.toUpperCase()}</button>
+            ))}
           </div>
           <button className="btn" onClick={onAdd}><IconPlus size={14} /> New event</button>
         </div>
       </div>
 
-      <div className="week">
-        <div className="hd" />
-        {days.map(d => (
-          <div key={d.d} className={'hd day' + (d.today ? ' today' : '')}>
-            <span>{d.d}</span>
-            <span className="num">{String(d.n).padStart(2, '0')}</span>
+      {view === 'week' ? (
+        <div className="week">
+          <div className="hd" />
+          {days.map(d => (
+            <div
+              key={d.d}
+              className={'hd day clickable' + (d.today ? ' today' : '')}
+              onClick={() => { setActiveDay(d.d); setView('day'); }}
+              title={'Open ' + d.d}
+            >
+              <span>{d.d}</span>
+              <span className="num">{String(d.n).padStart(2, '0')}</span>
+            </div>
+          ))}
+          {hours.map(h => (
+            <React.Fragment key={h}>
+              <div className="hour">{h}</div>
+              {days.map(d => {
+                const ev = events[d.d + '-' + h];
+                return (
+                  <div
+                    key={d.d + h}
+                    className={'cell' + (ev ? '' : ' empty')}
+                    onClick={ev ? undefined : onAdd}
+                    title={ev ? ev.title : 'Add event at ' + d.d + ' ' + h}
+                  >
+                    {ev ? (
+                      <div className={'event' + (ev.urgent ? ' urgent' : '')}>
+                        <div>{ev.title}</div>
+                        <div className="subj">{ev.subj}</div>
+                      </div>
+                    ) : (
+                      <span className="ghost-add"><IconPlus size={12} /></span>
+                    )}
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+      ) : null}
+
+      {view === 'day' ? (
+        <div>
+          <div className="day-pills" style={{ marginBottom: 20 }}>
+            {days.map(d => (
+              <button key={d.d} className={'day-pill' + (activeDay === d.d ? ' on' : '')} onClick={() => setActiveDay(d.d)}>
+                <span className="d">{d.d} {d.today ? '· today' : ''}</span>
+                <span className="n">{String(d.n).padStart(2, '0')}</span>
+                <span className="meta">{countFor(d.d)} events</span>
+              </button>
+            ))}
           </div>
-        ))}
-        {hours.map(h => (
-          <React.Fragment key={h}>
-            <div className="hour">{h}</div>
-            {days.map(d => {
-              const ev = events[d.d + '-' + h];
-              return (
-                <div key={d.d + h} className="cell">
-                  {ev ? (
-                    <div className={'event' + (ev.urgent ? ' urgent' : '')}>
-                      <div>{ev.title}</div>
-                      <div className="subj">{ev.subj}</div>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </React.Fragment>
-        ))}
-      </div>
+          <div className="panel">
+            <div className="panel-head">
+              <h2 className="t-h2">{activeDay}, June {activeInfo ? activeInfo.n : ''}</h2>
+              <span className="t-mut">{countFor(activeDay)} scheduled</span>
+            </div>
+            <div>
+              {hours.map(h => {
+                const ev = events[activeDay + '-' + h];
+                return (
+                  <div key={h} className="day-slot" onClick={ev ? undefined : onAdd} title={ev ? ev.title : 'Add event at ' + h}>
+                    <span className="time">{h}</span>
+                    {ev ? (
+                      <div className={'event' + (ev.urgent ? ' urgent' : '')} style={{ flex: 1 }}>
+                        <div>{ev.title}</div>
+                        <div className="subj">{ev.subj}</div>
+                      </div>
+                    ) : (
+                      <span className="free">Free <IconPlus size={11} /></span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {view === 'month' ? (
+        <div className="month">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+            <div key={d} className="hd">{d}</div>
+          ))}
+          {Array.from({ length: 42 }, (_, i) => {
+            // Mon June 2 — so June 1 lands on the Sunday of the first row
+            const n = i - 5;
+            const dayNum = n >= 1 && n <= 30 ? n : null;
+            const wd = days[i % 7];
+            const inWeek = dayNum !== null && dayNum >= 2 && dayNum <= 8;
+            const count = inWeek ? countFor(wd.d) : 0;
+            const today = dayNum === 4;
+            return (
+              <div
+                key={i}
+                className={'mcell' + (dayNum ? ' clickable' : '') + (today ? ' today' : '')}
+                onClick={dayNum ? () => { if (inWeek) { setActiveDay(wd.d); setView('day'); } else { onAdd(); } } : undefined}
+                title={dayNum ? (inWeek ? 'Open June ' + dayNum : 'Add event') : undefined}
+              >
+                {dayNum ? <span className="num">{String(dayNum).padStart(2, '0')}</span> : null}
+                {count > 0 ? <span className="count">{count} events</span> : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       <div style={{ display: 'flex', gap: 16, marginTop: 24, alignItems: 'center', fontSize: 11, letterSpacing: 0.16, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span style={{ width: 14, height: 14, background: 'var(--bg-sub)', borderLeft: '3px solid var(--ink)' }}></span> Scheduled</span>
@@ -76,11 +160,35 @@ function SchedulePage({ onAdd }) {
 }
 
 function ProgressPage() {
-  const weeks = [
-    { l: 'W17', val: 0.45 }, { l: 'W18', val: 0.62 }, { l: 'W19', val: 0.54 },
-    { l: 'W20', val: 0.78 }, { l: 'W21', val: 0.68 }, { l: 'W22', val: 0.71 },
-    { l: 'W23', val: 0.67, current: true },
-  ];
+  const [range, setRange] = React.useState('month');
+  const datasets = {
+    week: {
+      cols: [
+        { l: 'Mon', val: 0.6 }, { l: 'Tue', val: 0.4 }, { l: 'Wed', val: 0.8, current: true },
+        { l: 'Thu', val: 0.5 }, { l: 'Fri', val: 0.7 }, { l: 'Sat', val: 0.2 }, { l: 'Sun', val: 0.3 },
+      ],
+      caption: 'This week, by day',
+      stats: { done: 9, onTime: 88, focus: 3.1, streak: 14 },
+    },
+    month: {
+      cols: [
+        { l: 'W17', val: 0.45 }, { l: 'W18', val: 0.62 }, { l: 'W19', val: 0.54 },
+        { l: 'W20', val: 0.78 }, { l: 'W21', val: 0.68 }, { l: 'W22', val: 0.71 },
+        { l: 'W23', val: 0.67, current: true },
+      ],
+      caption: 'Last 7 weeks',
+      stats: { done: 58, onTime: 91, focus: 3.4, streak: 14 },
+    },
+    term: {
+      cols: [
+        { l: 'Jan', val: 0.4 }, { l: 'Feb', val: 0.55 }, { l: 'Mar', val: 0.6 },
+        { l: 'Apr', val: 0.72 }, { l: 'May', val: 0.66 }, { l: 'Jun', val: 0.69, current: true },
+      ],
+      caption: 'Spring term, by month',
+      stats: { done: 214, onTime: 89, focus: 3.2, streak: 14 },
+    },
+  };
+  const data = datasets[range];
   const subjects = [
     { name: 'Mathematics', done: 18, total: 22 },
     { name: 'Computer Science', done: 14, total: 20 },
@@ -96,31 +204,31 @@ function ProgressPage() {
           <h1 className="t-h1" style={{ marginTop: 8 }}>Progress</h1>
         </div>
         <div className="seg">
-          <button>WEEK</button>
-          <button className="on">MONTH</button>
-          <button>TERM</button>
+          {['week', 'month', 'term'].map(r => (
+            <button key={r} className={range === r ? 'on' : ''} onClick={() => setRange(r)}>{r.toUpperCase()}</button>
+          ))}
         </div>
       </div>
 
       <div className="stats">
         <div className="stat">
           <span className="label">Tasks completed</span>
-          <span className="t-stat">58</span>
-          <span className="delta">+12% vs last month</span>
+          <span className="t-stat">{data.stats.done}</span>
+          <span className="delta">+12% vs previous</span>
         </div>
         <div className="stat">
           <span className="label">On-time rate</span>
-          <span className="t-stat">91<span style={{ fontSize: 28, color: 'var(--muted)' }}>%</span></span>
+          <span className="t-stat">{data.stats.onTime}<span style={{ fontSize: 28, color: 'var(--muted)' }}>%</span></span>
           <span className="delta">+4%</span>
         </div>
         <div className="stat">
           <span className="label">Avg focus / day</span>
-          <span className="t-stat">3.4<span style={{ fontSize: 28, color: 'var(--muted)' }}>h</span></span>
+          <span className="t-stat">{data.stats.focus}<span style={{ fontSize: 28, color: 'var(--muted)' }}>h</span></span>
           <span className="delta">+0.6h</span>
         </div>
         <div className="stat">
           <span className="label">Streak</span>
-          <span className="t-stat">14<span style={{ fontSize: 28, color: 'var(--muted)' }}>d</span></span>
+          <span className="t-stat">{data.stats.streak}<span style={{ fontSize: 28, color: 'var(--muted)' }}>d</span></span>
           <span className="delta">Best 21d</span>
         </div>
       </div>
@@ -130,13 +238,13 @@ function ProgressPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 24 }}>
         <div className="panel">
           <div className="panel-head">
-            <h2 className="t-h2">Weekly completion</h2>
-            <span className="t-mut">Last 7 weeks</span>
+            <h2 className="t-h2">Completion</h2>
+            <span className="t-mut">{data.caption}</span>
           </div>
           <div className="panel-pad">
             <div className="bar-chart">
-              {weeks.map(w => (
-                <div key={w.l} className="col">
+              {data.cols.map(w => (
+                <div key={w.l} className="col" title={w.l + ': ' + Math.round(w.val * 100) + '%'}>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end' }}>
                     <div className="bar" style={{ height: (w.val * 100) + '%', background: w.current ? 'var(--accent)' : 'var(--ink)' }} />
                   </div>
@@ -162,7 +270,7 @@ function ProgressPage() {
                     <span className="tnum" style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>{s.done}/{s.total} <span style={{ color: 'var(--ink)', marginLeft: 8 }}>{pct}%</span></span>
                   </div>
                   <div className="progressbar" style={{ height: 4, background: 'var(--bg-sunken)' }}>
-                    <div style={{ width: pct + '%', height: '100%', background: 'var(--ink)' }} />
+                    <div style={{ width: pct + '%', height: '100%', background: 'var(--ink)', transition: 'width .35s ease' }} />
                   </div>
                 </div>
               );
@@ -174,20 +282,42 @@ function ProgressPage() {
   );
 }
 
-function NotificationsPage({ items, onMarkAll }) {
+function NotificationsPage({ items, onMarkAll, onToggle, onDismiss }) {
+  const [show, setShow] = React.useState('all');
+  const list = show === 'unread' ? items.filter(i => i.unread) : items;
+  const unreadCount = items.filter(i => i.unread).length;
   return (
     <div className="page">
       <div className="page-head row">
         <div>
           <div className="page-eyebrow">Inbox</div>
-          <h1 className="t-h1" style={{ marginTop: 8 }}>Notifications <span style={{ color: 'var(--muted-2)', fontWeight: 500 }}>/ {items.filter(i => i.unread).length} new</span></h1>
+          <h1 className="t-h1" style={{ marginTop: 8 }}>Notifications <span style={{ color: 'var(--muted-2)', fontWeight: 500 }}>/ {unreadCount} new</span></h1>
         </div>
-        <button className="btn ghost" onClick={onMarkAll}>Mark all read</button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="seg">
+            {['all', 'unread'].map(s => (
+              <button key={s} className={show === s ? 'on' : ''} onClick={() => setShow(s)}>{s.toUpperCase()}</button>
+            ))}
+          </div>
+          <button className="btn ghost" onClick={onMarkAll} disabled={unreadCount === 0}>Mark all read</button>
+        </div>
       </div>
 
       <div className="panel">
-        {items.map(n => (
-          <div key={n.id} className={'notif' + (n.unread ? ' unread' : '')}>
+        {list.length === 0 ? (
+          <div style={{ padding: 60, textAlign: 'center', color: 'var(--muted)' }}>
+            <div className="t-eyebrow">Inbox zero</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 12, color: 'var(--ink)' }}>
+              {show === 'unread' ? 'No unread notifications' : 'Nothing here yet'}
+            </div>
+          </div>
+        ) : list.map(n => (
+          <div
+            key={n.id}
+            className={'notif' + (n.unread ? ' unread' : '')}
+            onClick={() => onToggle?.(n.id)}
+            title={n.unread ? 'Mark as read' : 'Mark as unread'}
+          >
             <div className={'mark' + (n.kind === 'urgent' ? ' urgent' : '')}>
               {n.kind === 'urgent' ? <IconBell size={12} /> :
                n.kind === 'ai' ? <IconSpark size={12} /> :
@@ -199,6 +329,11 @@ function NotificationsPage({ items, onMarkAll }) {
               <div className="sub">{n.sub}</div>
             </div>
             <div className="time">{n.time}</div>
+            <button
+              className="dismiss"
+              onClick={e => { e.stopPropagation(); onDismiss?.(n.id); }}
+              aria-label="Dismiss notification" title="Dismiss"
+            ><IconClose size={12} /></button>
           </div>
         ))}
       </div>
@@ -207,6 +342,17 @@ function NotificationsPage({ items, onMarkAll }) {
 }
 
 function ProfilePage() {
+  const defaults = {
+    name: 'Josh Williams', email: 'josh@university.edu', year: 'First Year',
+    major: 'Engineering', bio: 'First-year engineering student. Likes calculus on a good day.',
+  };
+  const [saved, setSaved] = usePersistentState('profile', defaults);
+  const [draft, setDraft] = React.useState(saved);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
+  const initials = saved.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'JW';
+  const save = () => { setSaved(draft); notify('Profile saved'); };
+
   return (
     <div className="page">
       <div className="page-head">
@@ -215,10 +361,10 @@ function ProfilePage() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32 }}>
         <div className="panel" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
-          <div className="avatar" style={{ width: 96, height: 96, fontSize: 32, borderRadius: '50%' }}>JW</div>
+          <div className="avatar" style={{ width: 96, height: 96, fontSize: 32, borderRadius: '50%' }}>{initials}</div>
           <div>
-            <div className="t-h2">Josh Williams</div>
-            <div className="t-mut">First Year · Engineering</div>
+            <div className="t-h2">{saved.name}</div>
+            <div className="t-mut">{saved.year} · {saved.major}</div>
           </div>
           <div style={{ display: 'flex', gap: 20, paddingTop: 14, borderTop: '1px solid var(--line)', width: '100%' }}>
             <div>
@@ -239,17 +385,20 @@ function ProfilePage() {
         <div className="panel">
           <div className="panel-head"><h3 className="t-h3">Personal information</h3></div>
           <div className="panel-pad" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            <div className="field"><label>Full name</label><input className="input" defaultValue="Josh Williams" /></div>
-            <div className="field"><label>Email</label><input className="input" defaultValue="josh@university.edu" /></div>
+            <div className="field"><label>Full name</label><input className="input" value={draft.name} onChange={e => set('name', e.target.value)} /></div>
+            <div className="field"><label>Email</label><input className="input" type="email" value={draft.email} onChange={e => set('email', e.target.value)} /></div>
             <div className="field"><label>Year</label>
-              <select className="select" defaultValue="First Year"><option>First Year</option><option>Second Year</option><option>Third Year</option><option>Fourth Year</option></select>
+              <select className="select" value={draft.year} onChange={e => set('year', e.target.value)}>
+                <option>First Year</option><option>Second Year</option><option>Third Year</option><option>Fourth Year</option>
+              </select>
             </div>
-            <div className="field"><label>Major</label><input className="input" defaultValue="Engineering" /></div>
-            <div className="field" style={{ gridColumn: '1 / -1' }}><label>Bio</label><textarea className="textarea" rows={3} defaultValue="First-year engineering student. Likes calculus on a good day." /></div>
+            <div className="field"><label>Major</label><input className="input" value={draft.major} onChange={e => set('major', e.target.value)} /></div>
+            <div className="field" style={{ gridColumn: '1 / -1' }}><label>Bio</label><textarea className="textarea" rows={3} value={draft.bio} onChange={e => set('bio', e.target.value)} /></div>
           </div>
-          <div style={{ padding: 24, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-            <button className="btn ghost">Cancel</button>
-            <button className="btn">Save changes</button>
+          <div style={{ padding: 24, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' }}>
+            {dirty ? <span className="t-mut" style={{ marginRight: 'auto' }}>Unsaved changes</span> : null}
+            <button className="btn ghost" onClick={() => setDraft(saved)} disabled={!dirty}>Cancel</button>
+            <button className="btn" onClick={save} disabled={!dirty}>Save changes</button>
           </div>
         </div>
       </div>
@@ -258,6 +407,32 @@ function ProfilePage() {
 }
 
 function SettingsPage() {
+  const [prefs, setPrefs] = usePersistentState('settings', {
+    push: true, email: true, digest: false, ai: true, calendar: false, publicProfile: false,
+  });
+  const toggle = (k) => setPrefs(p => ({ ...p, [k]: !p[k] }));
+  const sections = [
+    {
+      title: 'Notifications', sub: 'Push, email and weekly digest preferences',
+      items: [
+        { k: 'push', label: 'Push notifications' },
+        { k: 'email', label: 'Email reminders' },
+        { k: 'digest', label: 'Weekly digest' },
+      ],
+    },
+    {
+      title: 'AI suggestions', sub: 'Allow Planify to suggest schedules and study blocks',
+      items: [{ k: 'ai', label: 'Smart scheduling suggestions' }],
+    },
+    {
+      title: 'Calendar sync', sub: 'Connect Google or Apple calendar',
+      items: [{ k: 'calendar', label: 'Sync external calendar' }],
+    },
+    {
+      title: 'Data & privacy', sub: 'Export, delete, and visibility controls',
+      items: [{ k: 'publicProfile', label: 'Public profile' }],
+    },
+  ];
   return (
     <div className="page">
       <div className="page-head">
@@ -265,19 +440,22 @@ function SettingsPage() {
         <h1 className="t-h1" style={{ marginTop: 8 }}>Settings</h1>
       </div>
       <div className="panel">
-        {[
-          { title: 'Notifications', sub: 'Push, email and weekly digest preferences' },
-          { title: 'AI suggestions', sub: 'Allow Planify to suggest schedules and study blocks' },
-          { title: 'Calendar sync', sub: 'Connect Google or Apple calendar' },
-          { title: 'Appearance', sub: 'Theme, density and accent color' },
-          { title: 'Data & privacy', sub: 'Export, delete, and visibility controls' },
-        ].map((s, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px', borderTop: i ? '1px solid var(--line)' : 'none' }}>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{s.title}</div>
-              <div className="t-mut" style={{ marginTop: 4 }}>{s.sub}</div>
+        {sections.map((s, i) => (
+          <div key={s.title} style={{ padding: '24px 28px', borderTop: i ? '1px solid var(--line)' : 'none' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{s.title}</div>
+            <div className="t-mut" style={{ marginTop: 4 }}>{s.sub}</div>
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {s.items.map(it => (
+                <div key={it.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 600 }}>{it.label}</span>
+                  <button
+                    className={'switch' + (prefs[it.k] ? ' on' : '')}
+                    onClick={() => toggle(it.k)}
+                    role="switch" aria-checked={prefs[it.k]} aria-label={it.label}
+                  ><span className="knob" /></button>
+                </div>
+              ))}
             </div>
-            <button className="btn ghost sm">Manage <IconArrow size={12} /></button>
           </div>
         ))}
       </div>

@@ -1,6 +1,6 @@
 /* Home + Tasks pages */
 
-function TaskRow({ t, onToggle, onClick }) {
+function TaskRow({ t, onToggle, onDelete, onClick }) {
   return (
     <div className={'task' + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')} onClick={onClick}>
       <button
@@ -22,16 +22,24 @@ function TaskRow({ t, onToggle, onClick }) {
       </div>
       <div className="right">
         {t.priority === 'urgent' ? <span className="tag urgent">Urgent</span> : null}
+        {onDelete ? (
+          <button
+            className="task-del"
+            onClick={e => { e.stopPropagation(); onDelete(t.id); }}
+            aria-label="Delete task" title="Delete task"
+          ><IconClose size={12} /></button>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function HomePage({ tasks, onToggle, onAdd, onOpenTask, goto }) {
+function HomePage({ tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) {
   const due = tasks.filter(t => !t.done).length;
-  const done = 8;
+  const done = tasks.filter(t => t.done).length;
   const hours = 24;
-  const pct = Math.round((done / (due + done)) * 100);
+  const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+  const nextUp = tasks.find(t => !t.done && t.priority === 'urgent') || tasks.find(t => !t.done);
 
   const weekActivity = [
     { d: 'Mon', l: 2 },
@@ -97,7 +105,7 @@ function HomePage({ tasks, onToggle, onAdd, onOpenTask, goto }) {
           </div>
           <div>
             {tasks.slice(0, 5).map(t => (
-              <TaskRow key={t.id} t={t} onToggle={onToggle} onClick={() => onOpenTask?.(t)} />
+              <TaskRow key={t.id} t={t} onToggle={onToggle} onDelete={onDelete} onClick={() => onOpenTask?.(t)} />
             ))}
           </div>
           <div style={{ padding: '14px 24px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -135,11 +143,11 @@ function HomePage({ tasks, onToggle, onAdd, onOpenTask, goto }) {
               <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, display: 'flex', justifyContent: 'space-between' }}>
                 <div>
                   <div className="t-eyebrow">Next up</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>Calculus Set 5</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>{nextUp ? nextUp.title : 'All clear'}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div className="t-eyebrow">In</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>18h</div>
+                  <div className="t-eyebrow">Due</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>{nextUp ? (nextUp.dueDate || nextUp.due) : '—'}</div>
                 </div>
               </div>
             </div>
@@ -150,8 +158,9 @@ function HomePage({ tasks, onToggle, onAdd, onOpenTask, goto }) {
   );
 }
 
-function TasksPage({ tasks, onToggle, onAdd }) {
+function TasksPage({ tasks, onToggle, onDelete, onAdd }) {
   const [filter, setFilter] = React.useState('all');
+  const [sort, setSort] = React.useState('none');
   const [q, setQ] = React.useState('');
   const filtered = tasks.filter(t => {
     if (filter === 'active' && t.done) return false;
@@ -159,6 +168,16 @@ function TasksPage({ tasks, onToggle, onAdd }) {
     if (q && !(t.title + ' ' + t.subject).toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });
+  const prioRank = { urgent: 0, medium: 1, low: 2 };
+  const dueRank = t => {
+    const d = Date.parse(t.dueDate);
+    return isNaN(d) ? Infinity : d;
+  };
+  const sorted = sort === 'none' ? filtered : [...filtered].sort((a, b) =>
+    sort === 'priority' ? (prioRank[a.priority] ?? 9) - (prioRank[b.priority] ?? 9) :
+    sort === 'title' ? a.title.localeCompare(b.title) :
+    dueRank(a) - dueRank(b)
+  );
   return (
     <div className="page">
       <div className="page-head row">
@@ -181,18 +200,28 @@ function TasksPage({ tasks, onToggle, onAdd }) {
             <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>{f.toUpperCase()}</button>
           ))}
         </div>
+        <select className="select" style={{ width: 'auto' }} value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort tasks">
+          <option value="none">Sort: Default</option>
+          <option value="due">Sort: Due date</option>
+          <option value="priority">Sort: Priority</option>
+          <option value="title">Sort: Title</option>
+        </select>
       </div>
 
       <div className="panel">
-        {filtered.length === 0 ? (
+        {sorted.length === 0 ? (
           <div style={{ padding: 60, textAlign: 'center', color: 'var(--muted)' }}>
             <div className="t-eyebrow">Nothing here</div>
-            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 12, color: 'var(--ink)' }}>You're all caught up</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 12, color: 'var(--ink)' }}>
+              {q || filter !== 'all' ? 'No tasks match' : "You're all caught up"}
+            </div>
+            {q ? <button className="btn ghost sm" style={{ marginTop: 16 }} onClick={() => setQ('')}>Clear search</button> : null}
           </div>
-        ) : filtered.map(t => (
-          <TaskRow key={t.id} t={t} onToggle={onToggle} />
+        ) : sorted.map(t => (
+          <TaskRow key={t.id} t={t} onToggle={onToggle} onDelete={onDelete} />
         ))}
       </div>
+      <div className="t-mut" style={{ marginTop: 12 }}>{sorted.length} of {tasks.length} tasks shown</div>
     </div>
   );
 }

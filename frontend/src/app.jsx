@@ -13,10 +13,10 @@ function App() {
   const [authView, setAuthView] = React.useState('landing'); // 'landing' | 'signin' | 'register' | 'onboarding' | 'app'
   const [page, setPage] = React.useState('home');
   const [openGroupId, setOpenGroupId] = React.useState(null);
-  const [tasks, setTasks] = React.useState(INITIAL_TASKS);
-  const [groupTasks, setGroupTasks] = React.useState(GROUP_TASKS);
-  const [notifications, setNotifications] = React.useState(NOTIFICATIONS);
-  const [groups, setGroups] = React.useState(GROUPS);
+  const [tasks, setTasks] = usePersistentState('tasks', INITIAL_TASKS);
+  const [groupTasks, setGroupTasks] = usePersistentState('groupTasks', GROUP_TASKS);
+  const [notifications, setNotifications] = usePersistentState('notifications', NOTIFICATIONS);
+  const [groups, setGroups] = usePersistentState('groups', GROUPS);
   const [showAddTask, setShowAddTask] = React.useState(false);
   const [showCreateGroup, setShowCreateGroup] = React.useState(false);
 
@@ -28,24 +28,38 @@ function App() {
     ...gt,
     [gid]: gt[gid].map(t => t.id === id ? { ...t, done: !t.done } : t),
   }));
-  const addTask = (data) => setTasks(arr => [{
-    id: 'tn' + Date.now(),
-    title: data.title, desc: '',
-    subject: data.subject || 'General',
-    due: data.due ? 'Scheduled' : 'No date',
-    dueDate: data.due || '',
-    priority: data.priority === 'high' ? 'urgent' : data.priority,
-    done: false,
-  }, ...arr]);
-  const addGroupTask = (gid, data) => setGroupTasks(gt => ({
-    ...gt,
-    [gid]: [{
-      id: 'gtn' + Date.now(),
-      title: data.title, due: data.due ? 'Scheduled' : 'No date', dueDate: data.due || '',
+  const deleteTask = (id) => {
+    setTasks(arr => arr.filter(t => t.id !== id));
+    notify('Task deleted');
+  };
+  const deleteGroupTask = (gid, id) => {
+    setGroupTasks(gt => ({ ...gt, [gid]: gt[gid].filter(t => t.id !== id) }));
+    notify('Task deleted');
+  };
+  const addTask = (data) => {
+    setTasks(arr => [{
+      id: 'tn' + Date.now(),
+      title: data.title, desc: '',
+      subject: data.subject || 'General',
+      due: data.due ? 'Scheduled' : 'No date',
+      dueDate: data.due || '',
       priority: data.priority === 'high' ? 'urgent' : data.priority,
-      done: false, assignees: data.assignees,
-    }, ...(gt[gid] || [])],
-  }));
+      done: false,
+    }, ...arr]);
+    notify('Task added');
+  };
+  const addGroupTask = (gid, data) => {
+    setGroupTasks(gt => ({
+      ...gt,
+      [gid]: [{
+        id: 'gtn' + Date.now(),
+        title: data.title, due: data.due ? 'Scheduled' : 'No date', dueDate: data.due || '',
+        priority: data.priority === 'high' ? 'urgent' : data.priority,
+        done: false, assignees: data.assignees,
+      }, ...(gt[gid] || [])],
+    }));
+    notify('Task added to group');
+  };
   const createGroup = (data) => {
     const id = 'gn' + Date.now();
     setGroups(g => [...g, {
@@ -54,8 +68,22 @@ function App() {
       members: ['JW'], progress: 0, tasksDone: 0, tasksTotal: 0,
     }]);
     setGroupTasks(gt => ({ ...gt, [id]: [] }));
+    notify('Group created');
   };
-  const markAllRead = () => setNotifications(arr => arr.map(n => ({ ...n, unread: false })));
+  const markAllRead = () => {
+    setNotifications(arr => arr.map(n => ({ ...n, unread: false })));
+    notify('All notifications marked read');
+  };
+  const toggleNotif = (id) => setNotifications(arr => arr.map(n => n.id === id ? { ...n, unread: !n.unread } : n));
+  const dismissNotif = (id) => setNotifications(arr => arr.filter(n => n.id !== id));
+
+  // Group cards reflect live task state once a group has a task list
+  const groupsView = groups.map(g => {
+    const ts = groupTasks[g.id];
+    if (!ts) return g;
+    const done = ts.filter(t => t.done).length;
+    return { ...g, tasksDone: done, tasksTotal: ts.length, progress: ts.length ? done / ts.length : 0 };
+  });
 
   // Accent → CSS var
   const appClass =
@@ -72,7 +100,7 @@ function App() {
     Serif: "'Fraunces', 'Times New Roman', serif",
   };
 
-  const currentGroup = openGroupId ? groups.find(g => g.id === openGroupId) : null;
+  const currentGroup = openGroupId ? groupsView.find(g => g.id === openGroupId) : null;
 
   let content = null;
   if (currentGroup) {
@@ -82,15 +110,16 @@ function App() {
         tasks={groupTasks[currentGroup.id] || []}
         onBack={() => setOpenGroupId(null)}
         onToggle={(id) => toggleGroupTask(currentGroup.id, id)}
+        onDelete={(id) => deleteGroupTask(currentGroup.id, id)}
         onAddTask={() => setShowAddTask(true)}
       />
     );
   } else if (page === 'home') {
-    content = <HomePage tasks={tasks} onToggle={toggleTask} onAdd={() => setShowAddTask(true)} goto={goto} />;
+    content = <HomePage tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} goto={goto} />;
   } else if (page === 'tasks') {
-    content = <TasksPage tasks={tasks} onToggle={toggleTask} onAdd={() => setShowAddTask(true)} />;
+    content = <TasksPage tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} />;
   } else if (page === 'groups') {
-    content = <GroupsPage groups={groups} onOpen={setOpenGroupId} onCreate={() => setShowCreateGroup(true)} />;
+    content = <GroupsPage groups={groupsView} onOpen={setOpenGroupId} onCreate={() => setShowCreateGroup(true)} />;
   } else if (page === 'schedule') {
     content = <SchedulePage onAdd={() => setShowAddTask(true)} />;
   } else if (page === 'ai-schedule') {
@@ -98,7 +127,7 @@ function App() {
   } else if (page === 'progress') {
     content = <ProgressPage />;
   } else if (page === 'notifications') {
-    content = <NotificationsPage items={notifications} onMarkAll={markAllRead} />;
+    content = <NotificationsPage items={notifications} onMarkAll={markAllRead} onToggle={toggleNotif} onDismiss={dismissNotif} />;
   } else if (page === 'profile') {
     content = <ProfilePage />;
   } else if (page === 'settings') {
@@ -145,6 +174,7 @@ function App() {
     return (
       <div className={appClass} style={{ fontFamily: typeStyles[t.typeStyle] || typeStyles.Mono, display: 'block' }}>
         {authContent}
+        <Toasts />
         <TweaksPanel title="Tweaks">
           <TweakSection label="Flow" />
           <TweakRadio
@@ -192,6 +222,8 @@ function App() {
       {showCreateGroup ? (
         <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={createGroup} />
       ) : null}
+
+      <Toasts />
 
       <TweaksPanel title="Tweaks">
         <TweakSection label="Flow" />
