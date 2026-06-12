@@ -1,11 +1,18 @@
 import express from "express";
 import { config } from "dotenv";
 import { connectDB, disconnectDB } from "./config/db.js";
+import authRoutes from "./routes/authRoute.js";
+import groupRoutes from "./routes/groupRoute.js";
 
 config();
 connectDB();
 
 const app = express();
+app.use(express.json());
+
+app.use("/api/auth", authRoutes);
+app.use("/api/groups", groupRoutes);
+
 const PORT = 5001;
 
 const server = app.listen(PORT, () => {
