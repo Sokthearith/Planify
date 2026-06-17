@@ -2,8 +2,8 @@ import { Router } from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import {
   createGroup,
-  getMyGroup,
-  getGroupId,
+  getMyGroups,
+  getMyGroupsById,
   updateGroup,
   deleteGroup,
   addMember,
@@ -12,10 +12,10 @@ import {
 
 const router = Router();
 
-router.route("/").post(protect, createGroup).get(protect, getMyGroup);
+router.route("/").post(protect, createGroup).get(protect, getMyGroups);
 router
   .route("/:id")
-  .get(protect, getGroupId)
+  .get(protect, getMyGroupsById)
   .put(protect, updateGroup)
   .delete(protect, deleteGroup);
 router.route("/:id/members", protect, addMember);

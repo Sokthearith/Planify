@@ -81,7 +81,7 @@ export const deleteGroup = async (req, res) => {
   });
   res.json({ message: "Group deleted" });
 };
-export const addMemeber = async (req, res) => {
+export const addMember = async (req, res) => {
   const { email } = req.body;
   const user = await prisma.user.findUnique({
     where: { email },
