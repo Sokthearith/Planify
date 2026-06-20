@@ -1,124 +1,103 @@
-import { prisma } from "../config/db.js";
+import { StudyGroup, GroupMember, User } from "../models/index.js";
 
-// Post - Create user a group (you will be a creator and admin member)
 export const createGroup = async (req, res) => {
   const { name } = req.body;
-  const group = await prisma.studyGroup.create({
-    data: {
-      name,
-      createBy: req.user.id,
-      groupMembers: { create: { userId: req.user.id, role: "admin" } },
-    },
-    include: {
-      groupMembers: {
-        include: { user: { id: true, name: true, email: true } },
-      },
-    },
+  const group = await StudyGroup.create({
+    name,
+    createBy: req.user.id,
   });
-  res.status(201).json(group);
+  await GroupMember.create({
+    groupId: group.id,
+    userId: req.user.id,
+    role: "admin",
+  });
+  const full = await StudyGroup.findByPk(group.id, {
+    include: [
+      {
+        model: GroupMember,
+        include: [{ model: User, attributes: ["id", "name", "email"] }],
+      },
+    ],
+  });
+  res.status(201).json(full);
 };
 
-// Get - List all the group memeber you're a member of
 export const getMyGroups = async (req, res) => {
-  const membership = await prisma.groupMember.findUnique({
+  const membership = await GroupMember.findAll({
     where: { userId: req.user.id },
-    include: {
-      group: {
-        include: {
-          creator: { select: { id: true, name: true } },
-          groupMembers: {
-            include: { user: { select: { id: true, email: true } } },
+    include: [
+      {
+        model: StudyGroup,
+        include: [
+          { model: User, as: "creator", attributes: ["id", "name"] },
+          {
+            model: GroupMember,
+            include: [{ model: User, attributes: ["id", "email"] }],
           },
-        },
+        ],
       },
-    },
+    ],
   });
-  res.json(membership.map((m) => m.group));
+  res.json(membership.map((m) => m.StudyGroup));
 };
 
-// Get - get group detials
 export const getMyGroupsById = async (req, res) => {
-  const group = await prisma.studyGroup.findUnique({
-    where: { id: req.params.id },
-    include: {
-      creator: { select: { id: true, name: true } },
-      groupMembers: {
-        include: { user: { select: { id: true, name: true, email: true } } },
+  const group = await StudyGroup.findByPk(req.params.id, {
+    include: [
+      { model: User, as: "creator", attributes: ["id", "name"] },
+      {
+        model: GroupMember,
+        include: [{ model: User, attributes: ["id", "name", "email"] }],
       },
-    },
+    ],
   });
-  if (!group) return res.status(401).json({ message: "Group Not Found" });
+  if (!group) return res.status(404).json({ message: "Group Not Found" });
   res.json(group);
 };
 
-// Put - rename group (create or admin only)
 export const updateGroup = async (req, res) => {
-  const group = await prisma.studyGroup.findUnique({
-    where: { id: req.params.id },
-  });
-
-  if (!group) return res.status(401).json({ message: "Group Not Found" });
+  const group = await StudyGroup.findByPk(req.params.id);
+  if (!group) return res.status(404).json({ message: "Group Not Found" });
   if (group.createBy !== req.user.id)
     return res.status(403).json({ message: "Only the creator can update" });
-  const updated = await prisma.studyGroup.update({
-    where: { id: req.params.id },
-    data: { name: req.body.name },
-  });
-  res.json(updated);
+  await group.update({ name: req.body.name });
+  res.json(group);
 };
 
-// Delete - id delete group (create only)
 export const deleteGroup = async (req, res) => {
-  const group = await prisma.studyGroup.findUnique({
-    where: { id: req.params.id },
-  });
-  if (!group) return res.status(401).json({ message: "Group Not Found" });
+  const group = await StudyGroup.findByPk(req.params.id);
+  if (!group) return res.status(404).json({ message: "Group Not Found" });
   if (group.createBy !== req.user.id)
     return res.status(403).json({ message: "Only the creator can delete" });
-
-  await prisma.studyGroup.delete({
-    where: { id: req.params.id },
-  });
+  await group.destroy();
   res.json({ message: "Group deleted" });
 };
+
 export const addMember = async (req, res) => {
   const { email } = req.body;
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
-
+  const user = await User.findOne({ where: { email } });
   if (!user) return res.status(404).json({ message: "User Not Found" });
-  const existing = await prisma.groupMember.findUnique({
+  const existing = await GroupMember.findOne({
     where: { groupId: req.params.id, userId: user.id },
   });
-  if (existing) return res.status(404).json({ message: "Already a member" });
-  const member = await prisma.groupMember.create({
-    data: { groupId: req.params.id, userId: user.id },
-    include: {
-      user: { select: { id: true, name: true, email: true } },
-    },
+  if (existing) return res.status(400).json({ message: "Already a member" });
+  const member = await GroupMember.create({
+    groupId: req.params.id,
+    userId: user.id,
   });
-
-  res.status(201).json(member);
+  const full = await GroupMember.findByPk(member.id, {
+    include: [{ model: User, attributes: ["id", "name", "email"] }],
+  });
+  res.status(201).json(full);
 };
-// Delete /api/group/:id/members/:memberid - remove a member id
+
 export const removeMember = async (req, res) => {
-  const group = await prisma.studyGroup.findUnique({
-    where: { id: req.params.id },
-  });
+  const group = await StudyGroup.findByPk(req.params.id);
   if (!group) return res.status(404).json({ message: "Group Not Found" });
-
-  // Only the creator and the member themselves can remove
-  const member = await prisma.groupMember.findUnique({
-    where: { id: req.params.memberId },
-  });
+  const member = await GroupMember.findByPk(req.params.memberId);
   if (!member) return res.status(404).json({ message: "Member Not Found" });
-  if (group.createBy !== req.user.id && member.userId !== req.user.id) {
+  if (group.createBy !== req.user.id && member.userId !== req.user.id)
     return res.status(403).json({ message: "Not Authorized" });
-  }
-
-  await prisma.groupMember.delete({
-    where: { id: req.params.memberId },
-  });
-  res.json({ message: "Member remove" });
+  await member.destroy();
+  res.json({ message: "Member removed" });
 };

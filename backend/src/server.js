@@ -1,6 +1,6 @@
 import express from "express";
 import { config } from "dotenv";
-import { connectDB, disconnectDB } from "./config/db.js";
+import { connectDB, disconnectDB } from "./models/index.js";
 import groupRoutes from "./routes/groupRoute.js";
 
 config();

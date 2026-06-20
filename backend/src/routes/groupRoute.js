@@ -13,7 +13,7 @@ const router = Router();
 
 router.route("/").post(createGroup).get(getMyGroups);
 router.route("/:id").get(getMyGroupsById).put(updateGroup).delete(deleteGroup);
-router.route("/:id/members", addMember);
-router.route("/:id/members/:memberId", removeMember);
+router.route("/:id/members").post(addMember);
+router.route("/:id/members/:memberId").delete(removeMember);
 
 export default router;
