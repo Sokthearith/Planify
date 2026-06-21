@@ -2,8 +2,25 @@ import bcrypt from "bcrypt";
 import { User } from "../models/index.js";
 import generateToken from "../utils/generateToken.js";
 
+const validatePassword = (password) => {
+  const errors = [];
+
+  if (password.length < 8) errors.push("At least 8 characters");
+  if (!/[a-z]/.test(password)) errors.push("One lowercase letter");
+  if (!/[A-Z]/.test(password)) errors.push("One uppercase letter");
+  if (!/\d/.test(password)) errors.push("One number");
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password))
+    errors.push("One special character");
+  return errors;
+};
+
 export const register = async (req, res) => {
   const { name, email, password } = req.body;
+
+  const errors = validatePassword(password);
+  if (errors.length > 0) {
+    return res.status(400).json({ message: "Password too weak", errors });
+  }
 
   const exist = await User.findOne({ where: { email } });
   if (exist) return res.status(400).json({ message: "User already exists" });
@@ -20,7 +37,6 @@ export const register = async (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role,
     },
     token,
   });
@@ -44,7 +60,6 @@ export const login = async (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role,
     },
     token,
   });
