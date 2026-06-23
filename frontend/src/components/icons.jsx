@@ -88,8 +88,30 @@ const IconSpark = ({ size }) => (
 const IconClock = ({ size }) => (
   <I size={size}><circle cx="12" cy="12" r="9" /><path d="M12 7 V12 L15 14" /></I>
 );
+const IconEye = ({ size }) => (
+  <I size={size}>
+    <path d="M2 12 C5 7, 8 5, 12 5 C16 5, 19 7, 22 12 C19 17, 16 19, 12 19 C8 19, 5 17, 2 12 Z" />
+    <circle cx="12" cy="12" r="3" />
+  </I>
+);
+const IconEyeOff = ({ size }) => (
+  <I size={size}>
+    <path d="M2 12 C5 7, 8 5, 12 5 C16 5, 19 7, 22 12 C20.9 13.8, 19.6 15.2, 18 16.3" />
+    <path d="M14.2 18.7 C13.5 18.9, 12.8 19, 12 19 C8 19, 5 17, 2 12 C3.1 10.2, 4.4 8.8, 6 7.7" />
+    <path d="M5 5 L19 19" />
+    <path d="M10 10 C9.5 10.5, 9.2 11.2, 9.2 12 C9.2 13.5, 10.5 14.8, 12 14.8 C12.8 14.8, 13.5 14.5, 14 14" />
+  </I>
+);
+const IconLogout = ({ size }) => (
+  <I size={size}>
+    <path d="M10 4 H5 V20 H10" />
+    <path d="M14 8 L18 12 L14 16" />
+    <path d="M8 12 H18" />
+  </I>
+);
 
 Object.assign(window, {
   IconHome, IconTasks, IconGroups, IconCal, IconProgress, IconBell, IconUser, IconGear,
-  IconBack, IconPlus, IconClose, IconArrow, IconCheck, IconSearch, IconAddUser, IconSpark, IconClock
+  IconBack, IconPlus, IconClose, IconArrow, IconCheck, IconSearch, IconAddUser, IconSpark, IconClock,
+  IconEye, IconEyeOff, IconLogout
 });

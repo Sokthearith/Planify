@@ -30,6 +30,13 @@ function App() {
     setAuthView('app');
     setPage(p);
   };
+  const signOut = () => {
+    setIsAuthed(false);
+    setOpenGroupId(null);
+    setPage('home');
+    setAuthView('landing');
+    notify('Signed out');
+  };
   const openProfile = () => goto('profile');
   React.useEffect(() => {
     const fn = () => openProfile();
@@ -174,13 +181,13 @@ function App() {
   } else if (page === 'ai-schedule') {
     content = <AISchedulePage onAdd={() => setShowAddTask(true)} />;
   } else if (page === 'progress') {
-    content = <ProgressPage />;
+    content = <ProgressPage tasks={tasks} />;
   } else if (page === 'notifications') {
     content = <NotificationsPage items={notifications} onMarkAll={markAllRead} onToggle={toggleNotif} onDismiss={dismissNotif} />;
   } else if (page === 'profile') {
     content = <ProfilePage />;
   } else if (page === 'settings') {
-    content = <SettingsPage subjects={subjects} onAddSubject={addSubject} onRemoveSubject={removeSubject} />;
+    content = <SettingsPage subjects={subjects} onAddSubject={addSubject} onRemoveSubject={removeSubject} onSignOut={signOut} />;
   }
 
   // Auth flow: show landing / signin / register before the app
@@ -193,7 +200,7 @@ function App() {
           onGetStarted={() => setAuthView('register')}
           auth={isAuthed ? { name: 'Josh Williams', initials: 'JW' } : null}
           onOpenApp={() => setAuthView('app')}
-          onSignOut={() => { setIsAuthed(false); }}
+          onSignOut={signOut}
         />
       );
     } else if (authView === 'signin') {

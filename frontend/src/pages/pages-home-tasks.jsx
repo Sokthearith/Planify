@@ -1,10 +1,25 @@
 /* Home + Tasks pages */
 
+function priorityClass(priority) {
+  return priority === 'urgent' || priority === 'high' ? 'urgent' : (priority || 'medium');
+}
+
+function priorityLabel(priority) {
+  const p = priorityClass(priority);
+  return p === 'urgent' ? 'High' : p.charAt(0).toUpperCase() + p.slice(1);
+}
+
+function PriorityTag({ priority }) {
+  const p = priorityClass(priority);
+  return <span className={'tag priority-tag ' + p}>{priorityLabel(priority)}</span>;
+}
+
 function TaskRow({ t, onToggle, onDelete, onClick }) {
+  const p = priorityClass(t.priority);
   return (
-    <div className={'task' + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')} onClick={onClick}>
+    <div className={'task priority-' + p + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')} onClick={onClick}>
       <button
-        className={'checkbox' + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}
+        className={'checkbox ' + p + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}
         onClick={e => { e.stopPropagation(); onToggle(t.id); }}
         aria-label="Toggle done"
       >
@@ -21,7 +36,7 @@ function TaskRow({ t, onToggle, onDelete, onClick }) {
         </div>
       </div>
       <div className="right">
-        {t.priority === 'urgent' ? <span className="tag urgent">Urgent</span> : null}
+        <PriorityTag priority={t.priority} />
         {onDelete ? (
           <button
             className="task-del"
@@ -227,4 +242,4 @@ function TasksPage({ tasks, onToggle, onDelete, onAdd }) {
   );
 }
 
-Object.assign(window, { HomePage, TasksPage, TaskRow });
+Object.assign(window, { HomePage, TasksPage, TaskRow, PriorityTag, priorityClass, priorityLabel });

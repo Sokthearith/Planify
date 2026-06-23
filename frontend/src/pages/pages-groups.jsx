@@ -112,9 +112,9 @@ function GroupDetailPage({ group, tasks, onBack, onToggle, onDelete, onAddTask }
                 <button className="btn sm" style={{ marginTop: 16 }} onClick={onAddTask}><IconPlus size={12} /> Add task</button>
               </div>
             ) : tasks.map(t => (
-              <div key={t.id} className={'task' + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}>
+              <div key={t.id} className={'task priority-' + priorityClass(t.priority) + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}>
                 <button
-                  className={'checkbox' + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}
+                  className={'checkbox ' + priorityClass(t.priority) + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}
                   onClick={() => onToggle(t.id)}
                   aria-label="Toggle done"
                 >
@@ -133,7 +133,7 @@ function GroupDetailPage({ group, tasks, onBack, onToggle, onDelete, onAddTask }
                   </div>
                 </div>
                 <div className="right">
-                  {t.priority === 'urgent' ? <span className="tag urgent">Urgent</span> : null}
+                  <PriorityTag priority={t.priority} />
                   {onDelete ? (
                     <button className="task-del" data-sound="delete" onClick={() => onDelete(t.id)} aria-label="Delete task" title="Delete task">
                       <IconClose size={12} />

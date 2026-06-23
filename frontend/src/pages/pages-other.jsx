@@ -163,8 +163,28 @@ function SchedulePage({ onAdd }) {
   );
 }
 
-function ProgressPage() {
+function ProgressPage({ tasks = [] }) {
   const [range, setRange] = React.useState('month');
+  const taskList = tasks.length ? tasks : INITIAL_TASKS;
+  const openTasks = taskList.filter(t => !t.done);
+  const doneTasks = taskList.filter(t => t.done);
+  const priorityCounts = ['urgent', 'medium', 'low'].map(p => ({
+    key: p,
+    label: priorityLabel(p),
+    count: openTasks.filter(t => priorityClass(t.priority) === p).length,
+  }));
+  const totalOpen = openTasks.length || 1;
+  const prioRank = { urgent: 0, medium: 1, low: 2 };
+  const nextActions = [...openTasks]
+    .sort((a, b) => (prioRank[priorityClass(a.priority)] ?? 9) - (prioRank[priorityClass(b.priority)] ?? 9))
+    .slice(0, 3);
+  const planningScore = Math.round((doneTasks.length / Math.max(taskList.length, 1)) * 100);
+  const focusMix = [
+    { label: 'Deep work', value: 46, note: 'Best before noon' },
+    { label: 'Review', value: 28, note: 'Keep it light' },
+    { label: 'Admin', value: 16, note: 'Batch together' },
+    { label: 'Group work', value: 10, note: 'Confirm owners' },
+  ];
   const datasets = {
     week: {
       cols: [
@@ -199,6 +219,11 @@ function ProgressPage() {
     { name: 'Physics', done: 9, total: 14 },
     { name: 'English Literature', done: 11, total: 12 },
     { name: 'Chemistry', done: 6, total: 10 },
+  ];
+  const habits = [
+    { label: 'Plan tomorrow', value: '18:30', detail: 'Best reminder window' },
+    { label: 'Protected focus', value: '2 blocks', detail: '90 minutes each' },
+    { label: 'Overload risk', value: priorityCounts[0].count ? 'High' : 'Low', detail: priorityCounts[0].count + ' high-priority open' },
   ];
   return (
     <div className="page">
@@ -279,6 +304,93 @@ function ProgressPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ height: 24 }} />
+
+      <div className="productivity-grid">
+        <div className="panel">
+          <div className="panel-head">
+            <h2 className="t-h2">Priority load</h2>
+            <span className="t-mut">{openTasks.length} open tasks</span>
+          </div>
+          <div className="panel-pad" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {priorityCounts.map(p => {
+              const pct = Math.round((p.count / totalOpen) * 100);
+              return (
+                <div key={p.key}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span className={'tag priority-tag ' + p.key}>{p.label}</span>
+                    <span className="tnum" style={{ color: 'var(--muted)', fontWeight: 700 }}>{p.count} · {pct}%</span>
+                  </div>
+                  <div className="progressbar priority-load" style={{ height: 8, background: 'var(--bg-sunken)' }}>
+                    <div className={p.key} style={{ width: pct + '%' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <h2 className="t-h2">Next actions</h2>
+            <span className="t-mut">Do first</span>
+          </div>
+          <div>
+            {nextActions.length ? nextActions.map((t, i) => (
+              <div key={t.id} className="progress-action">
+                <span className="rank">{String(i + 1).padStart(2, '0')}</span>
+                <div>
+                  <div className="title">{t.title}</div>
+                  <div className="meta">{t.subject} · {t.dueDate || t.due}</div>
+                </div>
+                <PriorityTag priority={t.priority} />
+              </div>
+            )) : (
+              <div style={{ padding: 28, color: 'var(--muted)' }}>No open tasks. Keep the streak warm with a quick review.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <h2 className="t-h2">Focus mix</h2>
+            <span className="t-mut">Recommended split</span>
+          </div>
+          <div className="panel-pad" style={{ display: 'grid', gap: 14 }}>
+            {focusMix.map(f => (
+              <div key={f.label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{f.label}</span>
+                  <span className="tnum" style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>{f.value}%</span>
+                </div>
+                <div className="progressbar" style={{ height: 6, background: 'var(--bg-sunken)' }}>
+                  <div style={{ width: f.value + '%', height: '100%', background: f.label === 'Deep work' ? 'var(--ink)' : 'var(--muted-2)' }} />
+                </div>
+                <div className="t-mut" style={{ marginTop: 6 }}>{f.note}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <h2 className="t-h2">Planning health</h2>
+            <span className="t-mut">{planningScore}% completion</span>
+          </div>
+          <div className="habit-list">
+            {habits.map(h => (
+              <div key={h.label} className="habit-row">
+                <div>
+                  <div className="label">{h.label}</div>
+                  <div className="detail">{h.detail}</div>
+                </div>
+                <div className="value">{h.value}</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -411,7 +523,7 @@ function ProfilePage() {
   );
 }
 
-function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject }) {
+function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject, onSignOut }) {
   const [prefs, setPrefs] = usePersistentState('settings', {
     push: true, email: true, digest: false, ai: true, calendar: false, publicProfile: false,
   });
@@ -493,6 +605,15 @@ function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject }) {
             </div>
           </div>
         ))}
+        <div style={{ padding: '24px 28px', borderTop: '1px solid var(--line)' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>Account</div>
+          <div className="t-mut" style={{ marginTop: 4 }}>End this session and return to the landing page</div>
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-start' }}>
+            <button className="btn ghost danger" onClick={onSignOut}>
+              <IconLogout size={14} /> Log out
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

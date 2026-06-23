@@ -134,7 +134,42 @@
 
 .auth-right .link:hover { text-decoration: underline; }
 
+.password-wrap {
+  position: relative;
+}
+
+.password-wrap .input {
+  padding-right: 48px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 44px;
+  height: calc(100% - 2px);
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  color: var(--ink);
+  background: var(--bg-sub);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
 .auth-right .big-btn {
+  width: 100%;
   min-height: 54px;
   background: var(--ink);
   color: #fff;
@@ -215,16 +250,18 @@
   display: flex;
   flex-wrap: nowrap;
   justify-content: flex-end;
+  align-items: stretch;
   gap: 8px;
 }
 
 .landing .btn,
 .landing .start {
   max-width: 100%;
+  min-width: 150px;
 }
 
 .landing-nav .ctas .btn {
-  width: auto;
+  width: 132px;
   min-height: 38px;
   padding: 9px 12px;
   font-size: 11px;
@@ -293,7 +330,7 @@
 }
 
 .hero .cta-row .btn {
-  flex: 1 1 180px;
+  flex: 0 0 196px;
   min-height: 48px;
 }
 
@@ -638,6 +675,156 @@
 .land-menu button:last-child { border-bottom: none; }
 .land-menu button:hover { background: var(--bg-sub); }
 
+@media (min-width: 761px) {
+  .auth {
+    display: grid;
+    grid-template-columns: minmax(320px, .85fr) minmax(420px, 1fr);
+  }
+
+  .auth-left {
+    min-height: 100vh;
+    padding: clamp(32px, 5vw, 64px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 48px;
+  }
+
+  .auth-left .lead {
+    max-width: 360px;
+  }
+
+  .auth-left .marquee,
+  .auth-left .bullets,
+  .auth-left .stat-grid {
+    display: grid;
+  }
+
+  .auth-left .marquee {
+    font-size: clamp(72px, 10vw, 132px);
+    font-weight: 800;
+    letter-spacing: -0.065em;
+    line-height: .82;
+  }
+
+  .auth-left .bullets {
+    gap: 12px;
+    color: rgba(255,255,255,.7);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+
+  .auth-left .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border: 1px solid rgba(255,255,255,.18);
+  }
+
+  .auth-left .stat-grid > div {
+    padding: 18px;
+    border-right: 1px solid rgba(255,255,255,.18);
+    border-bottom: 1px solid rgba(255,255,255,.18);
+  }
+
+  .auth-left .stat-grid > div:nth-child(even) { border-right: 0; }
+  .auth-left .stat-grid > div:nth-last-child(-n + 2) { border-bottom: 0; }
+
+  .auth-left .stat-grid .num {
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .auth-left .stat-grid .lbl {
+    margin-top: 8px;
+    color: rgba(255,255,255,.55);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+
+  .auth-right {
+    min-height: 100vh;
+    padding: clamp(48px, 7vw, 88px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .landing-nav {
+    min-height: 72px;
+    padding-inline: clamp(32px, 5vw, 72px);
+  }
+
+  .landing-nav .brand {
+    font-size: 28px;
+  }
+
+  .hero {
+    min-height: calc(100svh - 72px);
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 560px);
+    align-items: center;
+    gap: clamp(48px, 6vw, 96px);
+    padding: clamp(48px, 6vw, 84px) clamp(32px, 5vw, 72px);
+  }
+
+  .hero > div:first-child {
+    max-width: 900px;
+  }
+
+  .hero h1 {
+    font-size: clamp(68px, 6.6vw, 106px);
+    line-height: .9;
+    max-width: 920px;
+  }
+
+  .hero h1 br {
+    display: none;
+  }
+
+  .hero .desc {
+    max-width: 620px;
+    font-size: 17px;
+  }
+
+  .hero-frame {
+    justify-self: end;
+    width: min(100%, 560px);
+    min-height: 390px;
+  }
+
+  .stats-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .stats-row > div,
+  .features .feat {
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+  }
+
+  .stats-row > div:last-child,
+  .features .feat:last-child {
+    border-right: 0;
+  }
+
+  .features {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .features .feat {
+    min-height: 300px;
+    padding: clamp(28px, 4vw, 44px);
+  }
+
+  .steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-bottom: clamp(52px, 7vw, 84px);
+  }
+}
+
 /* ---- Sidebar brand menu link ---- */
 .sb-brand-btn {
   width: 100%;
@@ -861,6 +1048,7 @@
   .landing-nav .ctas .btn,
   .hero .cta-row .btn {
     width: 100%;
+    min-width: 0;
   }
 
   .hero h1 {

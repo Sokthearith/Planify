@@ -105,7 +105,7 @@ function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd }) {
         <div className="priority">
           {['low', 'medium', 'high'].map(p => (
             <button key={p}
-              className={priority === p ? 'on ' + (p === 'high' ? 'high' : '') : ''}
+              className={(priority === p ? 'on ' : '') + p}
               onClick={() => setPriority(p)}
             >{p}</button>
           ))}

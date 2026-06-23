@@ -1,5 +1,29 @@
 /* Landing, SignIn, CreateAccount */
 
+function PasswordField({ value, onChange, placeholder }) {
+  const [visible, setVisible] = React.useState(false);
+  return (
+    <div className="password-wrap">
+      <input
+        className="input"
+        type={visible ? 'text' : 'password'}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+      />
+      <button
+        type="button"
+        className="password-toggle"
+        onClick={() => setVisible(v => !v)}
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        title={visible ? 'Hide password' : 'Show password'}
+      >
+        {visible ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+      </button>
+    </div>
+  );
+}
+
 function LandingPage({ onSignIn, onGetStarted, auth, onOpenApp, onSignOut }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   return (
@@ -54,8 +78,8 @@ function LandingPage({ onSignIn, onGetStarted, auth, onOpenApp, onSignOut }) {
             )}
           </div>
           <h1>
-            Study<br />
-            <span className="accent">smarter,</span><br />
+            Study{' '}<br />
+            <span className="accent">smarter,</span>{' '}<br />
             not harder.
           </h1>
           <p className="desc">
@@ -209,7 +233,7 @@ function SignInPage({ onBack, onSubmit, onSwitchToRegister }) {
           </div>
           <div className="field">
             <label>Password</label>
-            <input className="input" type="password" placeholder="••••••••" value={pw} onChange={e => setPw(e.target.value)} />
+            <PasswordField placeholder="••••••••" value={pw} onChange={e => setPw(e.target.value)} />
           </div>
 
           {error ? (
@@ -273,7 +297,7 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
           </div>
           <div className="field">
             <label>Password</label>
-            <input className="input" type="password" placeholder="At least 6 characters" value={pw} onChange={e => setPw(e.target.value)} />
+            <PasswordField placeholder="At least 6 characters" value={pw} onChange={e => setPw(e.target.value)} />
           </div>
 
           <label className="check-inline" style={{ fontSize: 13, color: 'var(--muted)' }}>
