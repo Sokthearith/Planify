@@ -8,6 +8,7 @@ export default (sequelize, DataTypes) => {
         primaryKey: true,
       },
       name: { type: DataTypes.STRING, allowNull: false },
+      subject: { type: DataTypes.STRING },
       createBy: { type: DataTypes.UUID, allowNull: false },
       createAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     },

@@ -9,14 +9,16 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [isAuthed, setIsAuthed] = React.useState(false);
-  const [authView, setAuthView] = React.useState('landing'); // 'landing' | 'signin' | 'register' | 'onboarding' | 'app'
+  const storedAuth = PlanifyAPI.getStoredAuth();
+  const [currentUser, setCurrentUser] = React.useState(storedAuth?.user || null);
+  const [isAuthed, setIsAuthed] = React.useState(!!storedAuth?.token);
+  const [authView, setAuthView] = React.useState(storedAuth?.token ? 'app' : 'landing'); // 'landing' | 'signin' | 'register' | 'onboarding' | 'app'
   const [page, setPage] = React.useState('home');
   const [openGroupId, setOpenGroupId] = React.useState(null);
-  const [tasks, setTasks] = usePersistentState('tasks', INITIAL_TASKS);
-  const [groupTasks, setGroupTasks] = usePersistentState('groupTasks', GROUP_TASKS);
-  const [notifications, setNotifications] = usePersistentState('notifications', NOTIFICATIONS);
-  const [groups, setGroups] = usePersistentState('groups', GROUPS);
+  const [tasks, setTasks] = React.useState([]);
+  const [groupTasks, setGroupTasks] = React.useState({});
+  const [notifications, setNotifications] = React.useState([]);
+  const [groups, setGroups] = React.useState([]);
   const [subjects, setSubjects] = usePersistentState('subjects', SUBJECTS);
   const [showAddTask, setShowAddTask] = React.useState(false);
   const [showCreateGroup, setShowCreateGroup] = React.useState(false);
@@ -30,8 +32,47 @@ function App() {
     setAuthView('app');
     setPage(p);
   };
-  const signOut = () => {
+  const refreshAppData = async (user = currentUser) => {
+    const [loadedTasks, loadedGroups, loadedNotifications] = await Promise.all([
+      PlanifyAPI.listTasks(),
+      PlanifyAPI.loadGroupsWithTasks(user),
+      PlanifyAPI.listNotifications(),
+    ]);
+    setTasks(loadedTasks);
+    setGroups(loadedGroups.groups);
+    setGroupTasks(loadedGroups.groupTasks);
+    setNotifications(loadedNotifications);
+  };
+
+  React.useEffect(() => {
+    if (!isAuthed) return;
+    let alive = true;
+    (async () => {
+      try {
+        const user = await PlanifyAPI.me();
+        if (!alive) return;
+        setCurrentUser(user);
+        await refreshAppData(user);
+      } catch (e) {
+        if (!alive) return;
+        PlanifyAPI.clearAuth();
+        setCurrentUser(null);
+        setIsAuthed(false);
+        setAuthView('signin');
+        notify(e.message || 'Please sign in again');
+      }
+    })();
+    return () => { alive = false; };
+  }, [isAuthed]);
+
+  const signOut = async () => {
+    await PlanifyAPI.logout();
     setIsAuthed(false);
+    setCurrentUser(null);
+    setTasks([]);
+    setGroups([]);
+    setGroupTasks({});
+    setNotifications([]);
     setOpenGroupId(null);
     setPage('home');
     setAuthView('landing');
@@ -45,59 +86,138 @@ function App() {
   }, []);
   const notifCount = notifications.filter(n => n.unread).length;
 
-  const toggleTask = (id) => setTasks(arr => arr.map(t => t.id === id ? { ...t, done: !t.done } : t));
-  const toggleGroupTask = (gid, id) => setGroupTasks(gt => ({
-    ...gt,
-    [gid]: gt[gid].map(t => t.id === id ? { ...t, done: !t.done } : t),
-  }));
-  const deleteTask = (id) => {
-    setTasks(arr => arr.filter(t => t.id !== id));
-    notify('Task deleted');
+  const toggleTask = async (id) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    setTasks(arr => arr.map(t => t.id === id ? { ...t, done: !t.done } : t));
+    try {
+      const saved = await PlanifyAPI.updateTask(id, { ...task, done: !task.done });
+      setTasks(arr => arr.map(t => t.id === id ? saved : t));
+    } catch (e) {
+      setTasks(arr => arr.map(t => t.id === id ? task : t));
+      notify(e.message || 'Could not update task');
+    }
   };
-  const deleteGroupTask = (gid, id) => {
-    setGroupTasks(gt => ({ ...gt, [gid]: gt[gid].filter(t => t.id !== id) }));
-    notify('Task deleted');
-  };
-  const addTask = (data) => {
-    setTasks(arr => [{
-      id: 'tn' + Date.now(),
-      title: data.title, desc: '',
-      subject: data.subject || 'General',
-      due: data.due ? 'Scheduled' : 'No date',
-      dueDate: data.due || '',
-      priority: data.priority === 'high' ? 'urgent' : data.priority,
-      done: false,
-    }, ...arr]);
-    notify('Task added');
-  };
-  const addGroupTask = (gid, data) => {
+  const toggleGroupTask = async (gid, id) => {
+    const task = (groupTasks[gid] || []).find(t => t.id === id);
+    if (!task) return;
     setGroupTasks(gt => ({
       ...gt,
-      [gid]: [{
-        id: 'gtn' + Date.now(),
-        title: data.title, due: data.due ? 'Scheduled' : 'No date', dueDate: data.due || '',
-        priority: data.priority === 'high' ? 'urgent' : data.priority,
-        done: false, assignees: data.assignees,
-      }, ...(gt[gid] || [])],
+      [gid]: (gt[gid] || []).map(t => t.id === id ? { ...t, done: !t.done } : t),
     }));
-    notify('Task added to group');
+    try {
+      const saved = await PlanifyAPI.updateGroupTask(gid, id, { ...task, done: !task.done });
+      setGroupTasks(gt => ({
+        ...gt,
+        [gid]: (gt[gid] || []).map(t => t.id === id ? saved : t),
+      }));
+    } catch (e) {
+      setGroupTasks(gt => ({
+        ...gt,
+        [gid]: (gt[gid] || []).map(t => t.id === id ? task : t),
+      }));
+      notify(e.message || 'Could not update task');
+    }
   };
-  const createGroup = (data) => {
-    const id = 'gn' + Date.now();
-    setGroups(g => [...g, {
-      id, title: data.name, subject: data.subject || 'General',
-      mark: (data.subject || 'NA').slice(0, 2).toUpperCase(),
-      members: ['JW'], progress: 0, tasksDone: 0, tasksTotal: 0,
-    }]);
-    setGroupTasks(gt => ({ ...gt, [id]: [] }));
-    notify('Group created');
+  const deleteTask = async (id) => {
+    const previous = tasks;
+    setTasks(arr => arr.filter(t => t.id !== id));
+    try {
+      await PlanifyAPI.deleteTask(id);
+      notify('Task deleted');
+    } catch (e) {
+      setTasks(previous);
+      notify(e.message || 'Could not delete task');
+    }
   };
-  const markAllRead = () => {
+  const deleteGroupTask = async (gid, id) => {
+    const previous = groupTasks[gid] || [];
+    setGroupTasks(gt => ({ ...gt, [gid]: previous.filter(t => t.id !== id) }));
+    try {
+      await PlanifyAPI.deleteGroupTask(gid, id);
+      notify('Task deleted');
+    } catch (e) {
+      setGroupTasks(gt => ({ ...gt, [gid]: previous }));
+      notify(e.message || 'Could not delete task');
+    }
+  };
+  const addTask = async (data) => {
+    try {
+      const task = await PlanifyAPI.createTask({
+        title: data.title,
+        subject: data.subject || 'General',
+        due: data.due,
+        priority: data.priority,
+      });
+      setTasks(arr => [task, ...arr]);
+      notify('Task added');
+    } catch (e) {
+      notify(e.message || 'Could not add task');
+    }
+  };
+  const addGroupTask = async (gid, data) => {
+    try {
+      const task = await PlanifyAPI.createGroupTask(gid, {
+        title: data.title,
+        subject: currentGroup?.subject || 'General',
+        due: data.due,
+        priority: data.priority,
+        assignees: data.assignees,
+      });
+      setGroupTasks(gt => ({ ...gt, [gid]: [task, ...(gt[gid] || [])] }));
+      notify('Task added to group');
+    } catch (e) {
+      notify(e.message || 'Could not add group task');
+    }
+  };
+  const createGroup = async (data) => {
+    try {
+      const group = await PlanifyAPI.createGroup(data, currentUser);
+      for (const email of data.invites || []) {
+        try { await PlanifyAPI.addGroupMember(group.id, email); } catch (e) {}
+      }
+      const loaded = await PlanifyAPI.loadGroupsWithTasks(currentUser);
+      setGroups(loaded.groups);
+      setGroupTasks(loaded.groupTasks);
+      notify('Group created');
+    } catch (e) {
+      notify(e.message || 'Could not create group');
+    }
+  };
+  const markAllRead = async () => {
+    const previous = notifications;
     setNotifications(arr => arr.map(n => ({ ...n, unread: false })));
-    notify('All notifications marked read');
+    try {
+      await PlanifyAPI.markNotificationsRead();
+      notify('All notifications marked read');
+    } catch (e) {
+      setNotifications(previous);
+      notify(e.message || 'Could not update notifications');
+    }
   };
-  const toggleNotif = (id) => setNotifications(arr => arr.map(n => n.id === id ? { ...n, unread: !n.unread } : n));
-  const dismissNotif = (id) => setNotifications(arr => arr.filter(n => n.id !== id));
+  const toggleNotif = async (id) => {
+    const notification = notifications.find(n => n.id === id);
+    if (!notification) return;
+    setNotifications(arr => arr.map(n => n.id === id ? { ...n, unread: false } : n));
+    if (!notification.unread) return;
+    try {
+      const saved = await PlanifyAPI.markNotificationRead(id);
+      setNotifications(arr => arr.map(n => n.id === id ? saved : n));
+    } catch (e) {
+      setNotifications(arr => arr.map(n => n.id === id ? notification : n));
+      notify(e.message || 'Could not update notification');
+    }
+  };
+  const dismissNotif = async (id) => {
+    const previous = notifications;
+    setNotifications(arr => arr.filter(n => n.id !== id));
+    try {
+      await PlanifyAPI.deleteNotification(id);
+    } catch (e) {
+      setNotifications(previous);
+      notify(e.message || 'Could not dismiss notification');
+    }
+  };
 
   const addSubject = (name) => {
     const v = (name || '').trim();
@@ -198,7 +318,7 @@ function App() {
         <LandingPage
           onSignIn={() => setAuthView('signin')}
           onGetStarted={() => setAuthView('register')}
-          auth={isAuthed ? { name: 'Josh Williams', initials: 'JW' } : null}
+          auth={isAuthed && currentUser ? { name: currentUser.name, initials: PlanifyAPI.initials(currentUser.name) } : null}
           onOpenApp={() => setAuthView('app')}
           onSignOut={signOut}
         />
@@ -207,7 +327,12 @@ function App() {
       authContent = (
         <SignInPage
           onBack={() => setAuthView('landing')}
-          onSubmit={() => { setIsAuthed(true); setAuthView('app'); }}
+          onSubmit={async ({ email, password }) => {
+            const user = await PlanifyAPI.login(email, password);
+            setCurrentUser(user);
+            setIsAuthed(true);
+            setAuthView('app');
+          }}
           onSwitchToRegister={() => setAuthView('register')}
         />
       );
@@ -215,7 +340,12 @@ function App() {
       authContent = (
         <CreateAccountPage
           onBack={() => setAuthView('landing')}
-          onSubmit={() => { setIsAuthed(true); setAuthView('onboarding'); }}
+          onSubmit={async ({ name, email, password }) => {
+            const user = await PlanifyAPI.register(name, email, password);
+            setCurrentUser(user);
+            setIsAuthed(true);
+            setAuthView('onboarding');
+          }}
           onSwitchToSignIn={() => setAuthView('signin')}
         />
       );

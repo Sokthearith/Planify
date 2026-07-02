@@ -71,6 +71,9 @@ GroupMember.belongsTo(StudyGroup, {
   onDelete: "CASCADE",
 });
 
+StudyGroup.hasMany(Task, { foreignKey: "groupId", onDelete: "CASCADE" });
+Task.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
+
 User.hasMany(Notifications, { foreignKey: "userId", onDelete: "CASCADE" });
 Notifications.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 

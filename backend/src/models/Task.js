@@ -8,10 +8,12 @@ export default (sequelize, DataTypes) => {
         primaryKey: true,
       },
       userId: { type: DataTypes.UUID, allowNull: false },
+      groupId: { type: DataTypes.UUID, allowNull: true },
       subject: { type: DataTypes.STRING },
       title: { type: DataTypes.STRING, allowNull: false },
       description: { type: DataTypes.TEXT },
       deadline: { type: DataTypes.DATE },
+      assignees: { type: DataTypes.JSON },
       priority: {
         type: DataTypes.ENUM("high", "medium", "low"),
         defaultValue: "low",
@@ -27,6 +29,7 @@ export default (sequelize, DataTypes) => {
       tableName: "Task",
       indexes: [
         { fields: ["userId"] },
+        { fields: ["groupId"] },
         { fields: ["deadline"] },
         { fields: ["status"] },
       ],

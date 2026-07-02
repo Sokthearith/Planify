@@ -22,6 +22,7 @@ const pickTaskFields = (body) => {
     "deadline",
     "priority",
     "status",
+    "assignees",
   ];
 
   allowedFields.forEach((field) => {
@@ -55,6 +56,7 @@ export const createTask = async (req, res) => {
   const task = await Task.create({
     ...taskData,
     userId: req.user.id,
+    groupId: null,
   });
 
   await createNotification({
@@ -68,7 +70,7 @@ export const createTask = async (req, res) => {
 };
 
 export const getMyTasks = async (req, res) => {
-  const where = { userId: req.user.id };
+  const where = { userId: req.user.id, groupId: null };
   const { status, priority } = req.query;
 
   if (status) {

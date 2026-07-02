@@ -1,12 +1,53 @@
-import { StudyGroup, GroupMember, User, Notifications } from "../models/index.js";
+import {
+  StudyGroup,
+  GroupMember,
+  Task,
+  User,
+  Notifications,
+} from "../models/index.js";
 import createNotification from "../utils/createNotification.js";
 
+const allowedPriorities = ["high", "medium", "low"];
+const allowedStatuses = ["pending", "in_progress", "done"];
+
+const findGroupMembership = (groupId, userId) => {
+  return GroupMember.findOne({ where: { groupId, userId } });
+};
+
+const pickGroupTaskFields = (body) => {
+  const fields = {};
+  [
+    "subject",
+    "title",
+    "description",
+    "deadline",
+    "priority",
+    "status",
+    "assignees",
+  ].forEach((field) => {
+    if (body[field] !== undefined) fields[field] = body[field];
+  });
+  return fields;
+};
+
+const validateGroupTask = ({ title, priority, status }, requireTitle = false) => {
+  if (requireTitle && !title) return { message: "Title is required" };
+  if (priority && !allowedPriorities.includes(priority)) {
+    return { message: "Invalid priority" };
+  }
+  if (status && !allowedStatuses.includes(status)) {
+    return { message: "Invalid status" };
+  }
+  return null;
+};
+
 export const createGroup = async (req, res) => {
-  const { name } = req.body;
+  const { name, subject } = req.body;
   if (!name) return res.status(400).json({ message: "Name is required" });
 
   const group = await StudyGroup.create({
     name,
+    subject,
     createBy: req.user.id,
   });
   await GroupMember.create({
@@ -45,9 +86,7 @@ export const getMyGroups = async (req, res) => {
 };
 
 export const getMyGroupsById = async (req, res) => {
-  const membership = await GroupMember.findOne({
-    where: { groupId: req.params.id, userId: req.user.id },
-  });
+  const membership = await findGroupMembership(req.params.id, req.user.id);
   if (!membership) return res.status(404).json({ message: "Group Not Found" });
 
   const group = await StudyGroup.findByPk(req.params.id, {
@@ -68,7 +107,10 @@ export const updateGroup = async (req, res) => {
   if (!group) return res.status(404).json({ message: "Group Not Found" });
   if (group.createBy !== req.user.id)
     return res.status(403).json({ message: "Only the creator can update" });
-  await group.update({ name: req.body.name ?? group.name });
+  await group.update({
+    name: req.body.name ?? group.name,
+    subject: req.body.subject ?? group.subject,
+  });
   res.json(group);
 };
 
@@ -134,4 +176,78 @@ export const removeMember = async (req, res) => {
     return res.status(403).json({ message: "Not Authorized" });
   await member.destroy();
   res.json({ message: "Member removed" });
+};
+
+export const getGroupTasks = async (req, res) => {
+  const membership = await findGroupMembership(req.params.id, req.user.id);
+  if (!membership) return res.status(404).json({ message: "Group Not Found" });
+
+  const tasks = await Task.findAll({
+    where: { groupId: req.params.id },
+    order: [
+      ["deadline", "ASC"],
+      ["createAt", "DESC"],
+    ],
+  });
+
+  res.json(tasks);
+};
+
+export const createGroupTask = async (req, res) => {
+  const membership = await findGroupMembership(req.params.id, req.user.id);
+  if (!membership) return res.status(404).json({ message: "Group Not Found" });
+
+  const group = await StudyGroup.findByPk(req.params.id);
+  if (!group) return res.status(404).json({ message: "Group Not Found" });
+
+  const taskData = pickGroupTaskFields(req.body);
+  const error = validateGroupTask(taskData, true);
+  if (error) return res.status(400).json(error);
+
+  const task = await Task.create({
+    ...taskData,
+    subject: taskData.subject || group.subject,
+    userId: req.user.id,
+    groupId: group.id,
+  });
+
+  await createNotification({
+    userId: req.user.id,
+    taskId: task.id,
+    groupId: group.id,
+    type: "group",
+    message: `Group task created: ${task.title}`,
+  });
+
+  res.status(201).json(task);
+};
+
+export const updateGroupTask = async (req, res) => {
+  const membership = await findGroupMembership(req.params.id, req.user.id);
+  if (!membership) return res.status(404).json({ message: "Group Not Found" });
+
+  const task = await Task.findOne({
+    where: { id: req.params.taskId, groupId: req.params.id },
+  });
+  if (!task) return res.status(404).json({ message: "Task Not Found" });
+
+  const taskData = pickGroupTaskFields(req.body);
+  const error = validateGroupTask(taskData);
+  if (error) return res.status(400).json(error);
+
+  await task.update(taskData);
+  res.json(task);
+};
+
+export const deleteGroupTask = async (req, res) => {
+  const membership = await findGroupMembership(req.params.id, req.user.id);
+  if (!membership) return res.status(404).json({ message: "Group Not Found" });
+
+  const task = await Task.findOne({
+    where: { id: req.params.taskId, groupId: req.params.id },
+  });
+  if (!task) return res.status(404).json({ message: "Task Not Found" });
+
+  await task.destroy();
+  res.json({ message: "Task deleted" });
 };

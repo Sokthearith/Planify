@@ -199,12 +199,20 @@ function SignInPage({ onBack, onSubmit, onSwitchToRegister }) {
   const [email, setEmail] = React.useState('');
   const [pw, setPw] = React.useState('');
   const [error, setError] = React.useState('');
-  const submit = e => {
+  const [loading, setLoading] = React.useState(false);
+  const submit = async e => {
     e.preventDefault();
     if (!email.trim() || !pw) { setError('Enter your email and password to continue.'); return; }
     if (!/\S+@\S+\.\S+/.test(email)) { setError('That email address doesn’t look right.'); return; }
     setError('');
-    onSubmit();
+    setLoading(true);
+    try {
+      await onSubmit({ email, password: pw });
+    } catch (err) {
+      setError(err.message || 'Could not sign in.');
+    } finally {
+      setLoading(false);
+    }
   };
   return (
     <div className="auth">
@@ -247,7 +255,9 @@ function SignInPage({ onBack, onSubmit, onSwitchToRegister }) {
             <button type="button" className="link muted">Forgot password?</button>
           </div>
 
-          <button type="submit" className="big-btn">Sign in <IconArrow size={14} /></button>
+          <button type="submit" className="big-btn" disabled={loading}>
+            {loading ? 'Signing in…' : 'Sign in'} <IconArrow size={14} />
+          </button>
 
           <div className="alt">
             Don't have an account?
@@ -264,7 +274,26 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
   const [email, setEmail] = React.useState('');
   const [pw, setPw] = React.useState('');
   const [agree, setAgree] = React.useState(false);
-  const valid = name.trim() && email.trim() && pw.length >= 6 && agree;
+  const [error, setError] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const strongEnough = pw.length >= 8 && /[a-z]/.test(pw) && /[A-Z]/.test(pw) && /\d/.test(pw) && /[!@#$%^&*(),.?":{}|<>]/.test(pw);
+  const valid = name.trim() && /\S+@\S+\.\S+/.test(email) && strongEnough && agree;
+  const submit = async e => {
+    e.preventDefault();
+    if (!valid) {
+      setError('Use a valid email and a password with 8+ characters, upper/lowercase, a number, and a special character.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      await onSubmit({ name, email, password: pw });
+    } catch (err) {
+      setError(err.message || 'Could not create account.');
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div className="auth">
       <div className="auth-left">
@@ -286,7 +315,7 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
         <h1 className="title">Get started.</h1>
         <p className="sub">Create your free account in under a minute.</p>
 
-        <form className="form" onSubmit={e => { e.preventDefault(); if (valid) onSubmit(); }}>
+        <form className="form" onSubmit={submit}>
           <div className="field">
             <label>Full name</label>
             <input className="input" placeholder="Josh Williams" value={name} onChange={e => setName(e.target.value)} autoFocus />
@@ -297,16 +326,20 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
           </div>
           <div className="field">
             <label>Password</label>
-            <PasswordField placeholder="At least 6 characters" value={pw} onChange={e => setPw(e.target.value)} />
+            <PasswordField placeholder="8+ chars, number, symbol" value={pw} onChange={e => setPw(e.target.value)} />
           </div>
+
+          {error ? (
+            <div style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600 }}>{error}</div>
+          ) : null}
 
           <label className="check-inline" style={{ fontSize: 13, color: 'var(--muted)' }}>
             <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} />
             <span>I agree to the <button type="button" className="link" style={{ display: 'inline' }}>Terms</button> and <button type="button" className="link" style={{ display: 'inline' }}>Privacy Policy</button></span>
           </label>
 
-          <button type="submit" className="big-btn" disabled={!valid} style={!valid ? { background: 'var(--muted-2)', borderColor: 'var(--muted-2)', cursor: 'not-allowed' } : null}>
-            Create account <IconArrow size={14} />
+          <button type="submit" className="big-btn" disabled={!valid || loading} style={!valid || loading ? { background: 'var(--muted-2)', borderColor: 'var(--muted-2)', cursor: 'not-allowed' } : null}>
+            {loading ? 'Creating…' : 'Create account'} <IconArrow size={14} />
           </button>
 
           <div className="alt">
