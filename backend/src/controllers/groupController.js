@@ -1,4 +1,5 @@
-import { StudyGroup, GroupMember, User } from "../models/index.js";
+import { StudyGroup, GroupMember, User, Notifications } from "../models/index.js";
+import createNotification from "../utils/createNotification.js";
 
 export const createGroup = async (req, res) => {
   const { name } = req.body;
@@ -75,20 +76,42 @@ export const deleteGroup = async (req, res) => {
 
 export const addMember = async (req, res) => {
   const { email } = req.body;
+  const group = await StudyGroup.findByPk(req.params.id);
+
+  if (!group) return res.status(404).json({ message: "Group Not Found" });
+  if (group.createBy !== req.user.id)
+    return res.status(403).json({ message: "Only the creator can add members" });
+
   const user = await User.findOne({ where: { email } });
   if (!user) return res.status(404).json({ message: "User Not Found" });
+
   const existing = await GroupMember.findOne({
     where: { groupId: req.params.id, userId: user.id },
   });
   if (existing) return res.status(400).json({ message: "Already a member" });
-  const member = await GroupMember.create({
-    groupId: req.params.id,
+
+  const existingInvite = await Notifications.findOne({
+    where: {
+      groupId: group.id,
+      userId: user.id,
+      type: "group_invite",
+      inviteStatus: "pending",
+    },
+  });
+  if (existingInvite) {
+    return res.status(400).json({ message: "Invite already pending" });
+  }
+
+  const invite = await createNotification({
     userId: user.id,
+    groupId: group.id,
+    inviterId: req.user.id,
+    type: "group_invite",
+    inviteStatus: "pending",
+    message: `${req.user.name} sent you an invite to join ${group.name}`,
   });
-  const full = await GroupMember.findByPk(member.id, {
-    include: [{ model: User, attributes: ["id", "name", "email"] }],
-  });
-  res.status(201).json(full);
+
+  res.status(201).json({ message: "Group invite sent", invite });
 };
 
 export const removeMember = async (req, res) => {

@@ -8,7 +8,17 @@ export default (sequelize, DataTypes) => {
         primaryKey: true,
       },
       userId: { type: DataTypes.UUID, allowNull: false },
-      taskId: { type: DataTypes.UUID, allowNull: false },
+      taskId: { type: DataTypes.UUID, allowNull: true },
+      groupId: { type: DataTypes.UUID, allowNull: true },
+      inviterId: { type: DataTypes.UUID, allowNull: true },
+      type: {
+        type: DataTypes.ENUM("task", "group", "group_invite", "ai", "system"),
+        defaultValue: "task",
+      },
+      inviteStatus: {
+        type: DataTypes.ENUM("pending", "accepted", "declined"),
+        allowNull: true,
+      },
       message: { type: DataTypes.STRING, allowNull: false },
       isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
       sentAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
@@ -16,6 +26,14 @@ export default (sequelize, DataTypes) => {
     {
       timestamps: false,
       tableName: "Notifications",
+      indexes: [
+        { fields: ["userId"] },
+        { fields: ["groupId"] },
+        { fields: ["inviterId"] },
+        { fields: ["isRead"] },
+        { fields: ["inviteStatus"] },
+        { fields: ["sentAt"] },
+      ],
     },
   );
 };

@@ -1,4 +1,5 @@
 import { Task } from "../models/index.js";
+import createNotification from "../utils/createNotification.js";
 
 const allowedPriorities = ["high", "medium", "low"];
 const allowedStatuses = ["pending", "in_progress", "done"];
@@ -56,6 +57,13 @@ export const createTask = async (req, res) => {
     userId: req.user.id,
   });
 
+  await createNotification({
+    userId: req.user.id,
+    taskId: task.id,
+    type: "task",
+    message: `Task created: ${task.title}`,
+  });
+
   res.status(201).json(task);
 };
 
@@ -103,7 +111,40 @@ export const updateTask = async (req, res) => {
   const error = validateTask(taskData);
   if (error) return res.status(400).json(error);
 
+  const previousDeadline = task.deadline ? task.deadline.toISOString() : null;
+  const previousStatus = task.status;
+
   await task.update(taskData);
+
+  const notifications = [];
+
+  if (taskData.deadline !== undefined) {
+    const nextDeadline = task.deadline ? task.deadline.toISOString() : null;
+
+    if (previousDeadline !== nextDeadline) {
+      notifications.push(
+        createNotification({
+          userId: req.user.id,
+          taskId: task.id,
+          type: "task",
+          message: `Deadline updated for: ${task.title}`,
+        }),
+      );
+    }
+  }
+
+  if (taskData.status === "done" && previousStatus !== "done") {
+    notifications.push(
+      createNotification({
+        userId: req.user.id,
+        taskId: task.id,
+        type: "task",
+        message: `Task completed: ${task.title}`,
+      }),
+    );
+  }
+
+  await Promise.all(notifications);
   res.json(task);
 };
 
