@@ -5,6 +5,7 @@ import generateToken from "../utils/generateToken.js";
 const validatePassword = (password) => {
   const errors = [];
 
+  if (!password) return ["Password is required"];
   if (password.length < 8) errors.push("At least 8 characters");
   if (!/[a-z]/.test(password)) errors.push("One lowercase letter");
   if (!/[A-Z]/.test(password)) errors.push("One uppercase letter");
@@ -16,6 +17,10 @@ const validatePassword = (password) => {
 
 export const register = async (req, res) => {
   const { name, email, password } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ message: "Name and email are required" });
+  }
 
   const errors = validatePassword(password);
   if (errors.length > 0) {
@@ -68,9 +73,19 @@ export const login = async (req, res) => {
 export const logout = async (req, res) => {
   res.cookie("jwt", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "productions",
+    secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
     maxAge: 0,
   });
   res.json({ message: "Logout Successfully" });
+};
+
+export const getMe = async (req, res) => {
+  res.json({
+    data: {
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email,
+    },
+  });
 };

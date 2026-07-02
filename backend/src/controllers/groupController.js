@@ -3,6 +3,8 @@ import createNotification from "../utils/createNotification.js";
 
 export const createGroup = async (req, res) => {
   const { name } = req.body;
+  if (!name) return res.status(400).json({ message: "Name is required" });
+
   const group = await StudyGroup.create({
     name,
     createBy: req.user.id,
@@ -33,7 +35,7 @@ export const getMyGroups = async (req, res) => {
           { model: User, as: "creator", attributes: ["id", "name"] },
           {
             model: GroupMember,
-            include: [{ model: User, attributes: ["id", "email"] }],
+            include: [{ model: User, attributes: ["id", "name", "email"] }],
           },
         ],
       },
@@ -43,6 +45,11 @@ export const getMyGroups = async (req, res) => {
 };
 
 export const getMyGroupsById = async (req, res) => {
+  const membership = await GroupMember.findOne({
+    where: { groupId: req.params.id, userId: req.user.id },
+  });
+  if (!membership) return res.status(404).json({ message: "Group Not Found" });
+
   const group = await StudyGroup.findByPk(req.params.id, {
     include: [
       { model: User, as: "creator", attributes: ["id", "name"] },
@@ -61,7 +68,7 @@ export const updateGroup = async (req, res) => {
   if (!group) return res.status(404).json({ message: "Group Not Found" });
   if (group.createBy !== req.user.id)
     return res.status(403).json({ message: "Only the creator can update" });
-  await group.update({ name: req.body.name });
+  await group.update({ name: req.body.name ?? group.name });
   res.json(group);
 };
 
@@ -76,6 +83,8 @@ export const deleteGroup = async (req, res) => {
 
 export const addMember = async (req, res) => {
   const { email } = req.body;
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
   const group = await StudyGroup.findByPk(req.params.id);
 
   if (!group) return res.status(404).json({ message: "Group Not Found" });
@@ -117,7 +126,9 @@ export const addMember = async (req, res) => {
 export const removeMember = async (req, res) => {
   const group = await StudyGroup.findByPk(req.params.id);
   if (!group) return res.status(404).json({ message: "Group Not Found" });
-  const member = await GroupMember.findByPk(req.params.memberId);
+  const member = await GroupMember.findOne({
+    where: { id: req.params.memberId, groupId: req.params.id },
+  });
   if (!member) return res.status(404).json({ message: "Member Not Found" });
   if (group.createBy !== req.user.id && member.userId !== req.user.id)
     return res.status(403).json({ message: "Not Authorized" });
