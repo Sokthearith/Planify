@@ -10,6 +10,10 @@ export default (sequelize, DataTypes) => {
       groupId: { type: DataTypes.UUID, allowNull: false },
       userId: { type: DataTypes.UUID, allowNull: false },
       role: { type: DataTypes.STRING, defaultValue: "member" },
+      status: {
+        type: DataTypes.ENUM("pending", "accepted"),
+        defaultValue: "accepted",
+      },
     },
     {
       timestamps: false,

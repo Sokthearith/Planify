@@ -40,6 +40,7 @@ import TaskModel from "./Task.js";
 import ScheduleModel from "./Schedule.js";
 import StudyGroupModel from "./StudyGroup.js";
 import GroupMemberModel from "./GroupMember.js";
+import GroupTaskModel from "./GroupTask.js";
 import NotificationModel from "./Notifications.js";
 
 const User = UserModel(sequelize, DataTypes);
@@ -47,6 +48,7 @@ const Task = TaskModel(sequelize, DataTypes);
 const Schedule = ScheduleModel(sequelize, DataTypes);
 const StudyGroup = StudyGroupModel(sequelize, DataTypes);
 const GroupMember = GroupMemberModel(sequelize, DataTypes);
+const GroupTask = GroupTaskModel(sequelize, DataTypes);
 const Notifications = NotificationModel(sequelize, DataTypes);
 
 User.hasMany(Task, { foreignKey: "userId", onDelete: "CASCADE" });
@@ -73,6 +75,8 @@ GroupMember.belongsTo(StudyGroup, {
 
 StudyGroup.hasMany(Task, { foreignKey: "groupId", onDelete: "CASCADE" });
 Task.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
+StudyGroup.hasMany(GroupTask, { foreignKey: "groupId", onDelete: "CASCADE" });
+GroupTask.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
 
 User.hasMany(Notifications, { foreignKey: "userId", onDelete: "CASCADE" });
 Notifications.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
@@ -89,5 +93,6 @@ export {
   Schedule,
   StudyGroup,
   GroupMember,
+  GroupTask,
   Notifications,
 };
