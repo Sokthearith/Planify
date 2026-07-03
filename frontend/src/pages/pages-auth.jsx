@@ -318,7 +318,7 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
         <form className="form" onSubmit={submit}>
           <div className="field">
             <label>Full name</label>
-            <input className="input" placeholder="Josh Williams" value={name} onChange={e => setName(e.target.value)} autoFocus />
+            <input className="input" placeholder="Your full name" value={name} onChange={e => setName(e.target.value)} autoFocus />
           </div>
           <div className="field">
             <label>Email</label>

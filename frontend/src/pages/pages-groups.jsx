@@ -58,7 +58,22 @@ function GroupsPage({ groups, onOpen, onCreate }) {
   );
 }
 
-function GroupDetailPage({ group, tasks, onBack, onToggle, onDelete, onAddTask }) {
+function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAddTask }) {
+  const currentMember = {
+    id: user?.id || 'current-user',
+    initials: PlanifyAPI.initials(user?.username || user?.name, 'U'),
+    name: user?.username || user?.name || 'Student',
+    role: 'Leader',
+  };
+  const teamMembers = [
+    currentMember,
+    ...TEAM_MEMBERS.filter(m => m.id !== 'jw'),
+  ];
+  const memberProgress = [
+    { n: currentMember.name, i: currentMember.initials, val: 0 },
+    { n: 'Sarah Chen', i: 'SC', val: 0 },
+    { n: 'Mike Rodriguez', i: 'MR', val: 0 },
+  ];
   const copyInvite = () => {
     const link = 'https://planify.app/join/' + group.id;
     if (navigator.clipboard) navigator.clipboard.writeText(link).catch(() => {});
@@ -152,7 +167,7 @@ function GroupDetailPage({ group, tasks, onBack, onToggle, onDelete, onAddTask }
               <button className="btn iconbtn" style={{ width: 32, height: 32 }}><IconAddUser size={12} /></button>
             </div>
             <div style={{ padding: '8px 20px 20px' }}>
-              {TEAM_MEMBERS.map(m => (
+              {teamMembers.map(m => (
                 <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--line)' }}>
                   <Avatar initials={m.initials} size={32} />
                   <div>
@@ -169,7 +184,7 @@ function GroupDetailPage({ group, tasks, onBack, onToggle, onDelete, onAddTask }
               <h3 className="t-h3">Member progress</h3>
             </div>
             <div className="panel-pad" style={{ padding: '4px 20px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {[{ n: 'Josh Williams', i: 'JW', val: 0.5 }, { n: 'Sarah Chen', i: 'SC', val: 0.5 }, { n: 'Mike Rodriguez', i: 'MR', val: 0 }].map(m => (
+              {memberProgress.map(m => (
                 <div key={m.i} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

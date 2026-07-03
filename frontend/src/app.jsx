@@ -237,12 +237,13 @@ function App() {
       try {
         const raw = localStorage.getItem('planify:profile');
         const prof = raw ? JSON.parse(raw) : {
-          name: 'Josh Williams', email: 'josh@university.edu', year: 'First Year',
-          major: 'Engineering', bio: 'First-year engineering student. Likes calculus on a good day.',
+          name: currentUser?.username || currentUser?.name || '', email: currentUser?.email || '', year: 'First Year',
+          major: 'Engineering', bio: '',
         };
         localStorage.setItem('planify:profile', JSON.stringify({
           ...prof,
-          name: data.name || prof.name,
+          name: currentUser?.username || currentUser?.name || data.name || prof.name,
+          email: currentUser?.email || prof.email,
           year: data.year || prof.year,
           major: data.major || prof.major,
         }));
@@ -282,6 +283,7 @@ function App() {
   if (currentGroup) {
     content = (
       <GroupDetailPage
+        user={currentUser}
         group={currentGroup}
         tasks={groupTasks[currentGroup.id] || []}
         onBack={() => setOpenGroupId(null)}
@@ -291,7 +293,7 @@ function App() {
       />
     );
   } else if (page === 'home') {
-    content = <HomePage tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} goto={goto} />;
+    content = <HomePage user={currentUser} tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} goto={goto} />;
   } else if (page === 'tasks') {
     content = <TasksPage tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} />;
   } else if (page === 'groups') {
@@ -305,7 +307,7 @@ function App() {
   } else if (page === 'notifications') {
     content = <NotificationsPage items={notifications} onMarkAll={markAllRead} onToggle={toggleNotif} onDismiss={dismissNotif} />;
   } else if (page === 'profile') {
-    content = <ProfilePage />;
+    content = <ProfilePage user={currentUser} tasks={tasks} groups={groupsView} />;
   } else if (page === 'settings') {
     content = <SettingsPage subjects={subjects} onAddSubject={addSubject} onRemoveSubject={removeSubject} onSignOut={signOut} />;
   }
@@ -318,7 +320,10 @@ function App() {
         <LandingPage
           onSignIn={() => setAuthView('signin')}
           onGetStarted={() => setAuthView('register')}
-          auth={isAuthed && currentUser ? { name: currentUser.name, initials: PlanifyAPI.initials(currentUser.name) } : null}
+          auth={isAuthed && currentUser ? {
+            name: currentUser.username || currentUser.name,
+            initials: PlanifyAPI.initials(currentUser.username || currentUser.name),
+          } : null}
           onOpenApp={() => setAuthView('app')}
           onSignOut={signOut}
         />
@@ -352,6 +357,7 @@ function App() {
     } else if (authView === 'onboarding') {
       authContent = (
         <OnboardingFlow
+          user={currentUser}
           onDone={finishOnboarding}
           onSkip={() => { setIsAuthed(true); setAuthView('app'); }}
         />
@@ -390,6 +396,7 @@ function App() {
   return (
     <div className={appClass} style={{ fontFamily: typeStyles[t.typeStyle] || typeStyles.Mono }}>
       <Sidebar
+        user={currentUser}
         current={currentGroup ? 'groups' : page}
         onNav={goto}
         onProfile={openProfile}

@@ -50,10 +50,10 @@ function OnboardingShell({ step, total, onBack, onSkip, children, foot }) {
   );
 }
 
-function OnboardingFlow({ onDone, onSkip }) {
+function OnboardingFlow({ user, onDone, onSkip }) {
   const [step, setStep] = React.useState(1);
   const total = 5;
-  const [name, setName] = React.useState('Josh');
+  const [name, setName] = React.useState(user?.username || user?.name || '');
   const [year, setYear] = React.useState('First Year');
   const [major, setMajor] = React.useState('Engineering');
   const [subjects, setSubjects] = React.useState(['Mathematics', 'Computer Science', 'Physics']);

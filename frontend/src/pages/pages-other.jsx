@@ -9,20 +9,7 @@ function SchedulePage({ onAdd }) {
   ];
   const hours = ['9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 
-  const events = {
-    'Mon-9:00': { title: 'Calculus Lecture', subj: 'Mathematics' },
-    'Mon-14:00': { title: 'Office Hours', subj: 'CS' },
-    'Tue-10:00': { title: 'Physics Lab', subj: 'Physics' },
-    'Tue-13:00': { title: 'Study block', subj: 'Self' },
-    'Wed-9:00': { title: 'CS Lecture', subj: 'Computer Science', urgent: true },
-    'Wed-11:00': { title: 'Calc problem set', subj: 'Mathematics', urgent: true },
-    'Wed-15:00': { title: 'Study group', subj: 'Database Systems' },
-    'Thu-10:00': { title: 'Lit Seminar', subj: 'English' },
-    'Thu-14:00': { title: 'Lab Report 2', subj: 'Chemistry' },
-    'Fri-11:00': { title: 'Programming due', subj: 'CS', urgent: true },
-    'Fri-15:00': { title: 'Essay draft', subj: 'English' },
-    'Sun-11:00': { title: 'Weekly review', subj: 'Planning' },
-  };
+  const events = {};
   const countFor = (d) => hours.filter(h => events[d + '-' + h]).length;
   const activeInfo = days.find(d => d.d === activeDay);
 
@@ -165,7 +152,7 @@ function SchedulePage({ onAdd }) {
 
 function ProgressPage({ tasks = [] }) {
   const [range, setRange] = React.useState('month');
-  const taskList = tasks.length ? tasks : INITIAL_TASKS;
+  const taskList = tasks;
   const openTasks = taskList.filter(t => !t.done);
   const doneTasks = taskList.filter(t => t.done);
   const priorityCounts = ['urgent', 'medium', 'low'].map(p => ({
@@ -173,58 +160,52 @@ function ProgressPage({ tasks = [] }) {
     label: priorityLabel(p),
     count: openTasks.filter(t => priorityClass(t.priority) === p).length,
   }));
-  const totalOpen = openTasks.length || 1;
+  const totalOpen = openTasks.length;
   const prioRank = { urgent: 0, medium: 1, low: 2 };
   const nextActions = [...openTasks]
     .sort((a, b) => (prioRank[priorityClass(a.priority)] ?? 9) - (prioRank[priorityClass(b.priority)] ?? 9))
     .slice(0, 3);
   const planningScore = Math.round((doneTasks.length / Math.max(taskList.length, 1)) * 100);
-  const focusMix = [
-    { label: 'Deep work', value: 46, note: 'Best before noon' },
-    { label: 'Review', value: 28, note: 'Keep it light' },
-    { label: 'Admin', value: 16, note: 'Batch together' },
-    { label: 'Group work', value: 10, note: 'Confirm owners' },
-  ];
+  const focusMix = [];
+  const emptyStats = { done: doneTasks.length, onTime: 0, focus: 0, streak: 0 };
   const datasets = {
     week: {
       cols: [
-        { l: 'Mon', val: 0.6 }, { l: 'Tue', val: 0.4 }, { l: 'Wed', val: 0.8, current: true },
-        { l: 'Thu', val: 0.5 }, { l: 'Fri', val: 0.7 }, { l: 'Sat', val: 0.2 }, { l: 'Sun', val: 0.3 },
+        { l: 'Mon', val: 0 }, { l: 'Tue', val: 0 }, { l: 'Wed', val: 0, current: true },
+        { l: 'Thu', val: 0 }, { l: 'Fri', val: 0 }, { l: 'Sat', val: 0 }, { l: 'Sun', val: 0 },
       ],
       caption: 'This week, by day',
-      stats: { done: 9, onTime: 88, focus: 3.1, streak: 14 },
+      stats: emptyStats,
     },
     month: {
       cols: [
-        { l: 'W17', val: 0.45 }, { l: 'W18', val: 0.62 }, { l: 'W19', val: 0.54 },
-        { l: 'W20', val: 0.78 }, { l: 'W21', val: 0.68 }, { l: 'W22', val: 0.71 },
-        { l: 'W23', val: 0.67, current: true },
+        { l: 'W17', val: 0 }, { l: 'W18', val: 0 }, { l: 'W19', val: 0 },
+        { l: 'W20', val: 0 }, { l: 'W21', val: 0 }, { l: 'W22', val: 0 },
+        { l: 'W23', val: 0, current: true },
       ],
       caption: 'Last 7 weeks',
-      stats: { done: 58, onTime: 91, focus: 3.4, streak: 14 },
+      stats: emptyStats,
     },
     term: {
       cols: [
-        { l: 'Jan', val: 0.4 }, { l: 'Feb', val: 0.55 }, { l: 'Mar', val: 0.6 },
-        { l: 'Apr', val: 0.72 }, { l: 'May', val: 0.66 }, { l: 'Jun', val: 0.69, current: true },
+        { l: 'Jan', val: 0 }, { l: 'Feb', val: 0 }, { l: 'Mar', val: 0 },
+        { l: 'Apr', val: 0 }, { l: 'May', val: 0 }, { l: 'Jun', val: 0, current: true },
       ],
       caption: 'Spring term, by month',
-      stats: { done: 214, onTime: 89, focus: 3.2, streak: 14 },
+      stats: emptyStats,
     },
   };
   const data = datasets[range];
-  const subjects = [
-    { name: 'Mathematics', done: 18, total: 22 },
-    { name: 'Computer Science', done: 14, total: 20 },
-    { name: 'Physics', done: 9, total: 14 },
-    { name: 'English Literature', done: 11, total: 12 },
-    { name: 'Chemistry', done: 6, total: 10 },
-  ];
-  const habits = [
-    { label: 'Plan tomorrow', value: '18:30', detail: 'Best reminder window' },
-    { label: 'Protected focus', value: '2 blocks', detail: '90 minutes each' },
+  const subjects = Object.values(taskList.reduce((acc, task) => {
+    const name = task.subject || 'General';
+    acc[name] = acc[name] || { name, done: 0, total: 0 };
+    acc[name].total += 1;
+    if (task.done) acc[name].done += 1;
+    return acc;
+  }, {}));
+  const habits = taskList.length ? [
     { label: 'Overload risk', value: priorityCounts[0].count ? 'High' : 'Low', detail: priorityCounts[0].count + ' high-priority open' },
-  ];
+  ] : [];
   return (
     <div className="page">
       <div className="page-head row">
@@ -243,22 +224,18 @@ function ProgressPage({ tasks = [] }) {
         <div className="stat">
           <span className="label">Tasks completed</span>
           <span className="t-stat">{data.stats.done}</span>
-          <span className="delta">+12% vs previous</span>
         </div>
         <div className="stat">
           <span className="label">On-time rate</span>
           <span className="t-stat">{data.stats.onTime}<span style={{ fontSize: 28, color: 'var(--muted)' }}>%</span></span>
-          <span className="delta">+4%</span>
         </div>
         <div className="stat">
           <span className="label">Avg focus / day</span>
           <span className="t-stat">{data.stats.focus}<span style={{ fontSize: 28, color: 'var(--muted)' }}>h</span></span>
-          <span className="delta">+0.6h</span>
         </div>
         <div className="stat">
           <span className="label">Streak</span>
           <span className="t-stat">{data.stats.streak}<span style={{ fontSize: 28, color: 'var(--muted)' }}>d</span></span>
-          <span className="delta">Best 21d</span>
         </div>
       </div>
 
@@ -290,7 +267,7 @@ function ProgressPage({ tasks = [] }) {
             <h2 className="t-h2">By subject</h2>
           </div>
           <div style={{ padding: '8px 24px 24px' }}>
-            {subjects.map(s => {
+            {subjects.length ? subjects.map(s => {
               const pct = Math.round((s.done / s.total) * 100);
               return (
                 <div key={s.name} style={{ padding: '16px 0', borderBottom: '1px solid var(--line)' }}>
@@ -303,7 +280,9 @@ function ProgressPage({ tasks = [] }) {
                   </div>
                 </div>
               );
-            })}
+            }) : (
+              <div style={{ padding: '32px 0', color: 'var(--muted)' }}>No subjects yet</div>
+            )}
           </div>
         </div>
       </div>
@@ -318,7 +297,7 @@ function ProgressPage({ tasks = [] }) {
           </div>
           <div className="panel-pad" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {priorityCounts.map(p => {
-              const pct = Math.round((p.count / totalOpen) * 100);
+              const pct = totalOpen ? Math.round((p.count / totalOpen) * 100) : 0;
               return (
                 <div key={p.key}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -350,7 +329,7 @@ function ProgressPage({ tasks = [] }) {
                 <PriorityTag priority={t.priority} />
               </div>
             )) : (
-              <div style={{ padding: 28, color: 'var(--muted)' }}>No open tasks. Keep the streak warm with a quick review.</div>
+              <div style={{ padding: 28, color: 'var(--muted)' }}>No tasks yet</div>
             )}
           </div>
         </div>
@@ -361,7 +340,7 @@ function ProgressPage({ tasks = [] }) {
             <span className="t-mut">Recommended split</span>
           </div>
           <div className="panel-pad" style={{ display: 'grid', gap: 14 }}>
-            {focusMix.map(f => (
+            {focusMix.length ? focusMix.map(f => (
               <div key={f.label}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 700 }}>{f.label}</span>
@@ -372,7 +351,9 @@ function ProgressPage({ tasks = [] }) {
                 </div>
                 <div className="t-mut" style={{ marginTop: 6 }}>{f.note}</div>
               </div>
-            ))}
+            )) : (
+              <div style={{ padding: '8px 0', color: 'var(--muted)' }}>No focus data yet</div>
+            )}
           </div>
         </div>
 
@@ -382,7 +363,7 @@ function ProgressPage({ tasks = [] }) {
             <span className="t-mut">{planningScore}% completion</span>
           </div>
           <div className="habit-list">
-            {habits.map(h => (
+            {habits.length ? habits.map(h => (
               <div key={h.label} className="habit-row">
                 <div>
                   <div className="label">{h.label}</div>
@@ -390,7 +371,9 @@ function ProgressPage({ tasks = [] }) {
                 </div>
                 <div className="value">{h.value}</div>
               </div>
-            ))}
+            )) : (
+              <div style={{ padding: 24, color: 'var(--muted)' }}>No planning data yet</div>
+            )}
           </div>
         </div>
       </div>
@@ -458,17 +441,27 @@ function NotificationsPage({ items, onMarkAll, onToggle, onDismiss }) {
   );
 }
 
-function ProfilePage() {
+function ProfilePage({ user, tasks = [], groups = [] }) {
   const defaults = {
-    name: 'Josh Williams', email: 'josh@university.edu', year: 'First Year',
-    major: 'Engineering', bio: 'First-year engineering student. Likes calculus on a good day.',
+    name: user?.username || user?.name || '', email: user?.email || '', year: 'First Year',
+    major: 'Engineering', bio: '',
   };
   const [saved, setSaved] = usePersistentState('profile', defaults);
-  const [draft, setDraft] = React.useState(saved);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const profile = {
+    ...defaults,
+    ...saved,
+    name: user?.username || user?.name || saved.name || defaults.name || 'Student',
+    email: user?.email || saved.email || defaults.email,
+  };
+  const [draft, setDraft] = React.useState(profile);
+  React.useEffect(() => {
+    setDraft(profile);
+  }, [user?.username, user?.name, user?.email, saved.year, saved.major, saved.bio]);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(profile);
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
-  const initials = saved.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'JW';
-  const save = () => { setSaved(draft); notify('Profile saved'); };
+  const initials = PlanifyAPI.initials(profile.name, 'U');
+  const save = () => { setSaved({ ...saved, ...draft }); notify('Profile saved'); };
+  const streak = 0;
 
   return (
     <div className="page">
@@ -480,21 +473,21 @@ function ProfilePage() {
         <div className="panel" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
           <div className="avatar" style={{ width: 96, height: 96, fontSize: 32, borderRadius: '50%' }}>{initials}</div>
           <div>
-            <div className="t-h2">{saved.name}</div>
-            <div className="t-mut">{saved.year} · {saved.major}</div>
+            <div className="t-h2">{profile.name}</div>
+            <div className="t-mut">{profile.year} · {profile.major}</div>
           </div>
           <div style={{ display: 'flex', gap: 20, paddingTop: 14, borderTop: '1px solid var(--line)', width: '100%' }}>
             <div>
               <div className="t-eyebrow">Tasks</div>
-              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4 }}>58</div>
+              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4 }}>{tasks.length}</div>
             </div>
             <div>
               <div className="t-eyebrow">Groups</div>
-              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4 }}>3</div>
+              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4 }}>{groups.length}</div>
             </div>
             <div>
               <div className="t-eyebrow">Streak</div>
-              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4 }}>14d</div>
+              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4 }}>{streak}d</div>
             </div>
           </div>
         </div>
@@ -514,7 +507,7 @@ function ProfilePage() {
           </div>
           <div className="profile-actions" style={{ padding: 24, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' }}>
             {dirty ? <span className="t-mut" style={{ marginRight: 'auto' }}>Unsaved changes</span> : null}
-            <button className="btn ghost" data-sound="close" onClick={() => setDraft(saved)} disabled={!dirty}>Cancel</button>
+            <button className="btn ghost" data-sound="close" onClick={() => setDraft(profile)} disabled={!dirty}>Cancel</button>
             <button className="btn" onClick={save} disabled={!dirty}>Save changes</button>
           </div>
         </div>

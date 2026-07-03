@@ -1,6 +1,8 @@
 /* Sidebar */
 
-function Sidebar({ current, onNav, onProfile, notifCount, onGoLanding }) {
+function Sidebar({ user, current, onNav, onProfile, notifCount, onGoLanding }) {
+  const name = user?.username || user?.name || 'Student';
+  const initials = PlanifyAPI.initials(name, 'U');
   const navTo = (id) => {
     onNav?.(id);
   };
@@ -52,9 +54,9 @@ function Sidebar({ current, onNav, onProfile, notifCount, onGoLanding }) {
         aria-label="Open profile"
         title="Open profile"
       >
-        <span className="avatar">JW</span>
+        <span className="avatar">{initials}</span>
         <div>
-          <div className="name">Josh Williams</div>
+          <div className="name">{name}</div>
           <div className="sub">First Year · Engineering</div>
           <div className="profile-link">View profile</div>
         </div>

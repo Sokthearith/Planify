@@ -50,22 +50,15 @@ function TaskRow({ t, onToggle, onDelete, onClick }) {
   );
 }
 
-function HomePage({ tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) {
+function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) {
+  const firstName = (user?.username || user?.name || 'Student').trim().split(/\s+/)[0] || 'Student';
   const due = tasks.filter(t => !t.done).length;
   const done = tasks.filter(t => t.done).length;
-  const hours = 24;
+  const hours = 0;
   const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
   const nextUp = tasks.find(t => !t.done && t.priority === 'urgent') || tasks.find(t => !t.done);
 
-  const weekActivity = [
-    { d: 'Mon', l: 2 },
-    { d: 'Tue', l: 1 },
-    { d: 'Wed', l: 3 },
-    { d: 'Thu', l: 2, urgent: true },
-    { d: 'Fri', l: 2 },
-    { d: 'Sat', l: 0 },
-    { d: 'Sun', l: 1 },
-  ];
+  const weekActivity = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => ({ d, l: 0 }));
 
   return (
     <div className="page">
@@ -76,7 +69,7 @@ function HomePage({ tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) {
       </div>
       <div className="headline-row" style={{ marginTop: 14 }}>
         <h1 className="t-h1">
-          Hello, Josh<span className="slash"> / {due} due today</span>
+          Hello, {firstName}<span className="slash"> / {due} due today</span>
         </h1>
         <button className="btn" onClick={onAdd}>
           <IconPlus size={14} /> New task
@@ -89,22 +82,18 @@ function HomePage({ tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) {
         <div className="stat">
           <span className="label">Due</span>
           <span className="t-stat">{due}</span>
-          <span className="delta neg">+2 vs last week</span>
         </div>
         <div className="stat">
           <span className="label">Done</span>
           <span className="t-stat">{done}</span>
-          <span className="delta">+3 vs last week</span>
         </div>
         <div className="stat">
           <span className="label">Focus hours</span>
           <span className="t-stat">{hours}</span>
-          <span className="delta">+5 vs last week</span>
         </div>
         <div className="stat">
           <span className="label">Completion</span>
           <span className="t-stat">{pct}<span style={{ fontSize: 32, color: 'var(--muted)' }}>%</span></span>
-          <span className="delta">+12 vs last week</span>
         </div>
       </div>
 
@@ -125,7 +114,7 @@ function HomePage({ tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) {
             ))}
           </div>
           <div style={{ padding: '14px 24px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="t-mut">Showing 5 of {tasks.length}</span>
+            <span className="t-mut">Showing {Math.min(5, tasks.length)} of {tasks.length}</span>
             <button className="btn ghost sm" onClick={() => goto('tasks')}>View all <IconArrow size={12} /></button>
           </div>
         </div>
@@ -133,14 +122,14 @@ function HomePage({ tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="insight">
             <div className="eyebrow"><IconSpark size={11} /> AI Insight</div>
-            <div className="body">Focus on Calculus and Programming. Two urgent deadlines are within 4 days.</div>
+            <div className="body">Add tasks and deadlines to start building a study plan.</div>
             <button className="cta" onClick={() => goto('schedule')}>Schedule study block <IconArrow size={12} /></button>
           </div>
 
           <div className="panel">
             <div className="panel-head">
               <h3 className="t-h3">This week</h3>
-              <span className="t-mut">12 tasks</span>
+              <span className="t-mut">{tasks.length} tasks</span>
             </div>
             <div className="panel-pad" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="heat">
