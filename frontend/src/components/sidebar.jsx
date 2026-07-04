@@ -1,5 +1,19 @@
 /* Sidebar */
 
+import PlanifyAPI from '../api.jsx';
+import {
+  IconBack,
+  IconBell,
+  IconCal,
+  IconGear,
+  IconGroups,
+  IconHome,
+  IconProgress,
+  IconSpark,
+  IconTasks,
+  IconUser,
+} from './icons.jsx';
+
 function Sidebar({ user, current, onNav, onProfile, notifCount, onGoLanding }) {
   const name = user?.username || user?.name || 'Student';
   const initials = PlanifyAPI.initials(name, 'U');
@@ -66,3 +80,5 @@ function Sidebar({ user, current, onNav, onProfile, notifCount, onGoLanding }) {
 }
 
 Object.assign(window, { Sidebar });
+
+export { Sidebar };

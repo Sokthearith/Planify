@@ -234,3 +234,5 @@ const PlanifyAPI = (() => {
 })();
 
 Object.assign(window, { PlanifyAPI });
+
+export default PlanifyAPI;

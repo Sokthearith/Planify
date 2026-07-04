@@ -1,5 +1,9 @@
 /* Modals: Add Task, Create Group */
 
+import React from 'react';
+import { Avatar, SUBJECTS, TEAM_MEMBERS } from '../data.jsx';
+import { IconCheck, IconClose, IconPlus } from './icons.jsx';
+
 function Modal({ title, onClose, children, footer, width = 540 }) {
   React.useEffect(() => {
     const fn = e => e.key === 'Escape' && onClose();
@@ -191,3 +195,5 @@ function CreateGroupModal({ subjects, onAddSubject, onClose, onCreate }) {
 }
 
 Object.assign(window, { AddTaskModal, CreateGroupModal, Modal, SubjectSelect });
+
+export { AddTaskModal, CreateGroupModal, Modal, SubjectSelect };

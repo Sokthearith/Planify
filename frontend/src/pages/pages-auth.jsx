@@ -1,5 +1,16 @@
 /* Landing, SignIn, CreateAccount */
 
+import React from 'react';
+import {
+  IconArrow,
+  IconBack,
+  IconEye,
+  IconEyeOff,
+  IconProgress,
+  IconSpark,
+  IconTasks,
+} from '../components/icons.jsx';
+
 function PasswordField({ value, onChange, placeholder }) {
   const [visible, setVisible] = React.useState(false);
   return (
@@ -353,3 +364,5 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
 }
 
 Object.assign(window, { LandingPage, SignInPage, CreateAccountPage });
+
+export { LandingPage, SignInPage, CreateAccountPage };

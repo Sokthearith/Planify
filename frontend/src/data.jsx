@@ -1,5 +1,8 @@
 /* Data + small shared bits */
 
+import React from 'react';
+import { IconCheck } from './components/icons.jsx';
+
 const INITIAL_TASKS = [
   { id: 't1', title: 'Calculus Problem Set 5', desc: 'Complete problems 1-20 from Chapter 7', subject: 'Mathematics', due: 'Tomorrow', dueDate: 'Jun 7', priority: 'urgent', done: false },
   { id: 't2', title: 'Programming Assignment 3', desc: 'Implement binary search tree', subject: 'Computer Science', due: '4 days', dueDate: 'Jun 10', priority: 'urgent', done: false },
@@ -130,3 +133,18 @@ Object.assign(window, {
   INITIAL_TASKS, TEAM_MEMBERS, GROUPS, GROUP_TASKS, NOTIFICATIONS, SUBJECTS, MAJOR_PRESETS,
   Avatar, AvStack, usePersistentState, notify, Toasts
 });
+
+export {
+  INITIAL_TASKS,
+  TEAM_MEMBERS,
+  GROUPS,
+  GROUP_TASKS,
+  NOTIFICATIONS,
+  SUBJECTS,
+  MAJOR_PRESETS,
+  Avatar,
+  AvStack,
+  usePersistentState,
+  notify,
+  Toasts,
+};

@@ -1,5 +1,19 @@
 /* Schedule, Progress, Notifications, Profile, Settings */
 
+import React from 'react';
+import PlanifyAPI from '../api.jsx';
+import { notify, usePersistentState } from '../data.jsx';
+import {
+  IconBell,
+  IconCheck,
+  IconClose,
+  IconGroups,
+  IconLogout,
+  IconPlus,
+  IconSpark,
+} from '../components/icons.jsx';
+import { PriorityTag, priorityClass, priorityLabel } from './pages-home-tasks.jsx';
+
 function SchedulePage({ onAdd }) {
   const [view, setView] = React.useState('week');
   const [activeDay, setActiveDay] = React.useState('Wed');
@@ -613,3 +627,5 @@ function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject, onSignOut 
 }
 
 Object.assign(window, { SchedulePage, ProgressPage, NotificationsPage, ProfilePage, SettingsPage });
+
+export { SchedulePage, ProgressPage, NotificationsPage, ProfilePage, SettingsPage };

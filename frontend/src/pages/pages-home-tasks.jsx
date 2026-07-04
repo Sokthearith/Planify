@@ -1,5 +1,8 @@
 /* Home + Tasks pages */
 
+import React from 'react';
+import { IconArrow, IconCheck, IconClose, IconPlus, IconSearch, IconSpark } from '../components/icons.jsx';
+
 function priorityClass(priority) {
   return priority === 'urgent' || priority === 'high' ? 'urgent' : (priority || 'medium');
 }
@@ -232,3 +235,5 @@ function TasksPage({ tasks, onToggle, onDelete, onAdd }) {
 }
 
 Object.assign(window, { HomePage, TasksPage, TaskRow, PriorityTag, priorityClass, priorityLabel });
+
+export { HomePage, TasksPage, TaskRow, PriorityTag, priorityClass, priorityLabel };

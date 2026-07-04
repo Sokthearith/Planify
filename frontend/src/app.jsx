@@ -1,5 +1,31 @@
 /* Main app + tweaks */
 
+import React from 'react';
+import PlanifyAPI from './api.jsx';
+import { SUBJECTS, Toasts, notify, usePersistentState } from './data.jsx';
+import {
+  TweakColor,
+  TweakRadio,
+  TweakSection,
+  TweakSelect,
+  TweaksPanel,
+  useTweaks,
+} from './components/tweaks-panel.jsx';
+import { Sidebar } from './components/sidebar.jsx';
+import { AddTaskModal, CreateGroupModal } from './components/modals.jsx';
+import { HomePage, TasksPage } from './pages/pages-home-tasks.jsx';
+import { GroupsPage, GroupDetailPage } from './pages/pages-groups.jsx';
+import {
+  NotificationsPage,
+  ProfilePage,
+  ProgressPage,
+  SchedulePage,
+  SettingsPage,
+} from './pages/pages-other.jsx';
+import { LandingPage, SignInPage, CreateAccountPage } from './pages/pages-auth.jsx';
+import { OnboardingFlow } from './pages/pages-onboarding.jsx';
+import { AISchedulePage } from './pages/pages-ai-schedule.jsx';
+
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accent": "#ff2d2d",
   "density": "regular",
@@ -454,4 +480,4 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+export default App;

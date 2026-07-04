@@ -1,5 +1,9 @@
 /* Onboarding ("guiding") flow — shown after sign-up */
 
+import React from 'react';
+import { MAJOR_PRESETS } from '../data.jsx';
+import { IconArrow, IconBack, IconCheck, IconPlus, IconSpark } from '../components/icons.jsx';
+
 const ONBOARD_SUBJECTS = [
   'Mathematics', 'Computer Science', 'Physics', 'Chemistry', 'Biology',
   'English Literature', 'History', 'Economics', 'Philosophy', 'Psychology',
@@ -271,3 +275,5 @@ function OnboardStep({ eyebrow, title, sub, children }) {
 }
 
 Object.assign(window, { OnboardingFlow });
+
+export { OnboardingFlow };

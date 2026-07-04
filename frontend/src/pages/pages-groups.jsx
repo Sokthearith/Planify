@@ -1,5 +1,10 @@
 /* Groups list + Group detail */
 
+import PlanifyAPI from '../api.jsx';
+import { AvStack, Avatar, TEAM_MEMBERS, notify } from '../data.jsx';
+import { IconAddUser, IconBack, IconCheck, IconClose, IconPlus } from '../components/icons.jsx';
+import { PriorityTag, priorityClass } from './pages-home-tasks.jsx';
+
 function GroupsPage({ groups, onOpen, onCreate }) {
   return (
     <div className="page">
@@ -207,3 +212,5 @@ function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAdd
 }
 
 Object.assign(window, { GroupsPage, GroupDetailPage });
+
+export { GroupsPage, GroupDetailPage };

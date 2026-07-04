@@ -115,3 +115,26 @@ Object.assign(window, {
   IconBack, IconPlus, IconClose, IconArrow, IconCheck, IconSearch, IconAddUser, IconSpark, IconClock,
   IconEye, IconEyeOff, IconLogout
 });
+
+export {
+  IconHome,
+  IconTasks,
+  IconGroups,
+  IconCal,
+  IconProgress,
+  IconBell,
+  IconUser,
+  IconGear,
+  IconBack,
+  IconPlus,
+  IconClose,
+  IconArrow,
+  IconCheck,
+  IconSearch,
+  IconAddUser,
+  IconSpark,
+  IconClock,
+  IconEye,
+  IconEyeOff,
+  IconLogout,
+};

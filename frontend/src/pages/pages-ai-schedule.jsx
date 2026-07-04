@@ -1,5 +1,9 @@
 /* AI Schedule — the "guiding" page */
 
+import React from 'react';
+import { notify } from '../data.jsx';
+import { IconPlus, IconSpark } from '../components/icons.jsx';
+
 function AISchedulePage({ onAdd }) {
   const days = [
     { d: 'Mon', n: 3, count: 4 },
@@ -163,3 +167,5 @@ function AISchedulePage({ onAdd }) {
 }
 
 Object.assign(window, { AISchedulePage });
+
+export { AISchedulePage };
