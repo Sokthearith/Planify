@@ -2,7 +2,7 @@
 
 Planify is a full-stack student productivity and study management app for organizing tasks, deadlines, study groups, schedules, and reminders in one place.
 
-The project currently combines a static React frontend with an Express and MySQL backend. Core productivity flows are in place, while some frontend-backend integration work is still being verified.
+The project currently combines a Vite React frontend with an Express and MySQL backend. Core productivity flows are in place, while some frontend-backend integration work is still being verified.
 
 ## Features
 
@@ -42,21 +42,20 @@ Not currently implemented:
 * Automated tests
 * Production deployment configuration
 * WebSocket real-time updates
-* Frontend npm package/build setup
 
 ## Tech Stack
 
 ### Frontend
 
-* React 18 loaded from CDN
-* React DOM loaded from CDN
-* Babel Standalone for in-browser JSX compilation
+* React 18
+* React DOM
+* Vite
 * JSX
 * CSS
 * Fetch API
 * LocalStorage for selected frontend state and auth token storage
 
-The frontend is a static app in `frontend/`. There is no frontend `package.json` yet.
+The frontend is a Vite app in `frontend/`.
 
 ### Backend
 
@@ -89,6 +88,9 @@ Planify/
 ├── frontend/
 │   ├── assets/
 │   ├── index.html
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── vite.config.js
 │   └── src/
 │       ├── components/
 │       ├── pages/
@@ -96,6 +98,7 @@ Planify/
 │       ├── api.jsx
 │       ├── app.jsx
 │       ├── data.jsx
+│       ├── main.jsx
 │       └── sounds.jsx
 │
 ├── docs/
@@ -148,7 +151,7 @@ DB_PORT=3306
 JWT_SECRET=your_jwt_secret
 
 NODE_ENV=development
-FRONTEND_ORIGIN=http://localhost:5500
+FRONTEND_ORIGIN=http://localhost:5173
 ```
 
 Start the backend:
@@ -165,19 +168,23 @@ http://localhost:5001
 
 ### Frontend
 
-Serve the `frontend/` folder with a static server or an editor extension such as Live Server.
-
-Example:
+Install dependencies:
 
 ```bash
 cd frontend
-python3 -m http.server 5500
+npm install
+```
+
+Start the Vite dev server:
+
+```bash
+npm run dev
 ```
 
 Then open:
 
 ```text
-http://localhost:5500
+http://localhost:5173
 ```
 
 The frontend API adapter defaults to:
@@ -229,7 +236,7 @@ Near-term priorities:
 * Verify group invite acceptance and rejection from the UI
 * Decide how profile, settings, progress, and AI schedule data should persist
 * Add automated backend tests
-* Add a proper frontend build setup when the project needs one
+* Prepare production deployment configuration
 
 ## Contributors
 
