@@ -81,49 +81,53 @@ const PlanifyAPI = (() => {
 
   const toUiPriority = (priority) => priority === 'high' ? 'urgent' : (priority || 'medium');
   const toApiPriority = (priority) => priority === 'urgent' ? 'high' : (priority || 'medium');
-  const apiDeadline = (task) => {
-    const value = task.deadline || task.rawDeadline || task.due;
-    return /^\d{4}-\d{2}-\d{2}/.test(value || '') ? value : null;
-  };
 
-  const toUiTask = (task) => {
-    const due = formatDue(task.deadline);
+  const toUiTask = (task, memberLookup = {}) => {
+    const due = formatDue(task.dueDate);
     return {
       id: task.id,
       title: task.title,
       desc: task.description || '',
       subject: task.subject || 'General',
       priority: toUiPriority(task.priority),
-      done: task.status === 'done',
-      assignees: (task.assignees || []).map(value => String(value).toUpperCase()),
-      rawDeadline: task.deadline || '',
+      done: task.done,
+      assignees: (task.assignees || []).map(id => memberLookup[id] || String(id).toUpperCase().slice(0, 2)),
+      assigneeIds: task.assignees || [],
+      rawDeadline: task.dueDate || '',
       ...due,
     };
   };
 
   const taskPayload = (task) => ({
     title: task.title,
-    subject: task.subject || 'General',
     description: task.desc || task.description || '',
-    deadline: apiDeadline(task),
+    dueDate: task.rawDeadline || (task.due && /^\d{4}-\d{2}-\d{2}/.test(task.due) ? task.due : null),
     priority: toApiPriority(task.priority),
-    status: task.done ? 'done' : (task.status || 'pending'),
-    assignees: task.assignees?.map(value => String(value).toUpperCase()),
+    done: task.done || false,
+    assignees: task.assigneeIds || task.assignees || [],
   });
 
   const toUiGroup = (group, user) => {
-    const members = (group.GroupMembers || [])
-      .map(member => initials(member.User?.name || member.User?.email, 'U'));
+    const rawMembers = group.GroupMembers || [];
+    const memberList = rawMembers.map(member => ({
+      id: member.userId,
+      memberId: member.id,
+      name: member.User?.name || member.User?.email || '',
+      initials: initials(member.User?.name || member.User?.email, 'U'),
+      role: member.role || 'member',
+    }));
     const subject = group.subject || 'General';
     return {
       id: group.id,
       title: group.name,
       subject,
       mark: subject.slice(0, 2).toUpperCase(),
-      members: members.length ? members : [initials(user?.name, 'U')],
-      progress: 0,
-      tasksDone: 0,
-      tasksTotal: 0,
+      members: memberList.map(m => m.initials),
+      memberList,
+      createdBy: group.createBy,
+      progress: group.progress || 0,
+      tasksDone: group.tasksDone || 0,
+      tasksTotal: group.tasksTotal || 0,
     };
   };
 
@@ -131,12 +135,15 @@ const PlanifyAPI = (() => {
     id: notification.id,
     kind:
       notification.type === 'task' ? 'urgent' :
-      notification.type === 'group_invite' || notification.type === 'group' ? 'group' :
+      notification.type === 'group_invite' ? 'invite' :
+      notification.type === 'group' ? 'group' :
       notification.type || 'system',
     title: notification.message,
     sub: notification.Task?.title || (notification.inviteStatus ? 'Invite ' + notification.inviteStatus : ''),
     time: formatRelative(notification.sentAt),
     unread: !notification.isRead,
+    inviteStatus: notification.inviteStatus,
+    groupId: notification.groupId,
   });
 
   const saveAuth = (payload) => {
@@ -164,8 +171,10 @@ const PlanifyAPI = (() => {
     const groups = await request('/groups');
     const mappedGroups = groups.map(group => toUiGroup(group, user));
     const taskPairs = await Promise.all(mappedGroups.map(async (group) => {
+      const lookup = {};
+      (group.memberList || []).forEach(m => { lookup[m.id] = m.initials; });
       const tasks = await request('/groups/' + group.id + '/tasks');
-      return [group.id, tasks.map(toUiTask)];
+      return [group.id, tasks.map(t => toUiTask(t, lookup))];
     }));
     return {
       groups: mappedGroups,
@@ -174,6 +183,7 @@ const PlanifyAPI = (() => {
   };
 
   return {
+    request,
     initials,
     getStoredAuth,
     clearAuth,
@@ -213,14 +223,17 @@ const PlanifyAPI = (() => {
       method: 'POST',
       body: { email },
     }),
-    createGroupTask: async (groupId, task) => toUiTask(await request('/groups/' + groupId + '/tasks', {
+    removeGroupMember: async (groupId, memberId) => request('/groups/' + groupId + '/members/' + memberId, {
+      method: 'DELETE',
+    }),
+    createGroupTask: async (groupId, task, memberLookup = {}) => toUiTask(await request('/groups/' + groupId + '/tasks', {
       method: 'POST',
       body: taskPayload(task),
-    })),
-    updateGroupTask: async (groupId, taskId, task) => toUiTask(await request('/groups/' + groupId + '/tasks/' + taskId, {
+    }), memberLookup),
+    updateGroupTask: async (groupId, taskId, task, memberLookup = {}) => toUiTask(await request('/groups/' + groupId + '/tasks/' + taskId, {
       method: 'PUT',
       body: taskPayload(task),
-    })),
+    }), memberLookup),
     deleteGroupTask: async (groupId, taskId) => request('/groups/' + groupId + '/tasks/' + taskId, {
       method: 'DELETE',
     }),
@@ -230,6 +243,8 @@ const PlanifyAPI = (() => {
     })),
     markNotificationsRead: async () => request('/notifications/read-all', { method: 'PATCH' }),
     deleteNotification: async (id) => request('/notifications/' + id, { method: 'DELETE' }),
+    acceptInvite: async (notificationId) => request('/notifications/' + notificationId + '/accept', { method: 'PATCH' }),
+    declineInvite: async (notificationId) => request('/notifications/' + notificationId + '/decline', { method: 'PATCH' }),
   };
 })();
 

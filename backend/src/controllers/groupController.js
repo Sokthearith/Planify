@@ -92,6 +92,8 @@ export const getMyGroups = async (req, res) => {
       },
     ],
   });
+  console.log(`getMyGroups for user ${req.user.id}: found ${membership.length} memberships`);
+  membership.forEach(m => console.log(`  groupId=${m.groupId}, status=${m.status}`));
   res.json(membership.map((m) => m.StudyGroup));
 };
 
@@ -238,7 +240,6 @@ export const createGroupTask = async (req, res) => {
 
   await createNotification({
     userId: req.user.id,
-    taskId: task.id,
     groupId: group.id,
     type: "group",
     message: `Group task created: ${task.title}`,
@@ -253,12 +254,24 @@ export const updateGroupTask = async (req, res) => {
   );
   if (!membership) return res.status(404).json({ message: "Group Not Found" });
 
+  const group = await StudyGroup.findByPk(req.params.id);
+  if (!group) return res.status(404).json({ message: "Group Not Found" });
+
   const task = await GroupTask.findOne({
     where: { id: req.params.taskId, groupId: req.params.id },
   });
   if (!task) return res.status(404).json({ message: "Task Not Found" });
 
   const taskData = pickGroupTaskFields(req.body);
+
+  if (group.createBy !== req.user.id) {
+    const assigneeIds = typeof task.assignees === 'string' ? JSON.parse(task.assignees) : (task.assignees || []);
+    if (!assigneeIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "Only assigned members or the creator can edit this task" });
+    }
+    delete taskData.assignees;
+  }
+
   const error = validateGroupTask(taskData);
   if (error) return res.status(400).json(error);
 
@@ -271,6 +284,13 @@ export const deleteGroupTask = async (req, res) => {
     req.params.id, req.user.id, "accepted"
   );
   if (!membership) return res.status(404).json({ message: "Group Not Found" });
+
+  const group = await StudyGroup.findByPk(req.params.id);
+  if (!group) return res.status(404).json({ message: "Group Not Found" });
+
+  if (group.createBy !== req.user.id) {
+    return res.status(403).json({ message: "Only the group creator can delete tasks" });
+  }
 
   const task = await GroupTask.findOne({
     where: { id: req.params.taskId, groupId: req.params.id },

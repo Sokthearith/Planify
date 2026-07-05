@@ -69,9 +69,10 @@ export const getMemberProgress = async (req, res) => {
   });
 
   const progress = members.map((m) => {
-    const assigned = tasks.filter((t) =>
-      (t.assignees || []).includes(m.userId),
-    );
+    const assigned = tasks.filter((t) => {
+      const list = typeof t.assignees === 'string' ? JSON.parse(t.assignees) : (t.assignees || []);
+      return list.includes(m.userId);
+    });
     const done = assigned.filter((t) => t.done).length;
     return {
       userId: m.userId,

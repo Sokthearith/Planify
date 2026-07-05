@@ -1,7 +1,7 @@
 /* Groups list + Group detail */
 
-import PlanifyAPI from '../api.jsx';
-import { AvStack, Avatar, TEAM_MEMBERS, notify } from '../data.jsx';
+import React from 'react';
+import { AvStack, Avatar, notify } from '../data.jsx';
 import { IconAddUser, IconBack, IconCheck, IconClose, IconPlus } from '../components/icons.jsx';
 import { PriorityTag, priorityClass } from './pages-home-tasks.jsx';
 
@@ -63,26 +63,39 @@ function GroupsPage({ groups, onOpen, onCreate }) {
   );
 }
 
-function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAddTask }) {
-  const currentMember = {
-    id: user?.id || 'current-user',
-    initials: PlanifyAPI.initials(user?.username || user?.name, 'U'),
-    name: user?.username || user?.name || 'Student',
-    role: 'Leader',
-  };
-  const teamMembers = [
-    currentMember,
-    ...TEAM_MEMBERS.filter(m => m.id !== 'jw'),
-  ];
-  const memberProgress = [
-    { n: currentMember.name, i: currentMember.initials, val: 0 },
-    { n: 'Sarah Chen', i: 'SC', val: 0 },
-    { n: 'Mike Rodriguez', i: 'MR', val: 0 },
-  ];
-  const copyInvite = () => {
-    const link = 'https://planify.app/join/' + group.id;
-    if (navigator.clipboard) navigator.clipboard.writeText(link).catch(() => {});
-    notify('Invite link copied');
+function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAddTask, onAddMember, onEditTask, onRemoveMember }) {
+  const [inviteEmail, setInviteEmail] = React.useState('');
+  const [showInvite, setShowInvite] = React.useState(false);
+  const [inviting, setInviting] = React.useState(false);
+  const teamMembers = group.memberList || [];
+  const isAdmin = user?.id && group.createdBy === user.id;
+
+  const memberProgress = React.useMemo(() => {
+    return teamMembers.map(m => {
+      const assigned = tasks.filter(t => {
+        const list = t.assigneeIds || t.assignees || [];
+        return list.includes(m.id);
+      });
+      const done = assigned.filter(t => t.done).length;
+      return {
+        n: m.name,
+        i: m.initials,
+        val: assigned.length > 0 ? done / assigned.length : 0,
+      };
+    });
+  }, [tasks, teamMembers]);
+  const doInvite = async () => {
+    if (!inviteEmail.trim() || inviting) return;
+    setInviting(true);
+    try {
+      await onAddMember(inviteEmail.trim());
+      setInviteEmail('');
+      setShowInvite(false);
+    } catch (e) {
+      notify(e.message || 'Could not invite member');
+    } finally {
+      setInviting(false);
+    }
   };
   return (
     <div className="page">
@@ -96,11 +109,18 @@ function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAdd
           <h1 className="t-h1" style={{ marginTop: 14 }}>{group.title}</h1>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn ghost" onClick={copyInvite}><IconAddUser size={14} /> Invite</button>
+          <button className="btn ghost" onClick={() => setShowInvite(o => !o)}><IconAddUser size={14} /> Invite</button>
           <button className="btn" onClick={onAddTask}><IconPlus size={14} /> Add task</button>
         </div>
       </div>
 
+      {showInvite ? (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+          <input className="input" placeholder="Email address" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && doInvite()} autoFocus style={{ flex: 1 }} />
+          <button className="btn" onClick={doInvite} disabled={inviting}>{inviting ? 'Sending…' : 'Send'}</button>
+          <button className="btn ghost" onClick={() => { setShowInvite(false); setInviteEmail(''); }}>Cancel</button>
+        </div>
+      ) : null}
       <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="stat">
           <span className="label">Team members</span>
@@ -135,27 +155,35 @@ function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAdd
               <div key={t.id} className={'task priority-' + priorityClass(t.priority) + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}>
                 <button
                   className={'checkbox ' + priorityClass(t.priority) + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')}
-                  onClick={() => onToggle(t.id)}
+                  onClick={e => { e.stopPropagation(); if (isAdmin || (t.assigneeIds || []).includes(user?.id)) onToggle(t.id); }}
                   aria-label="Toggle done"
                 >
                   {t.done ? <IconCheck size={12} /> : null}
                 </button>
                 <div>
                   <div className="title">{t.title}</div>
+                  {t.desc ? <div className="desc">{t.desc}</div> : null}
                   <div className="meta">
                     <span>{t.due}</span>
                     <span className="sep">·</span>
                     <span>{t.dueDate}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-                    <span className="t-eyebrow">Assigned</span>
-                    <AvStack list={t.assignees} size={22} />
-                  </div>
+                  {t.assignees && t.assignees.length > 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+                      <span className="t-eyebrow">Assigned</span>
+                      <AvStack list={t.assignees} size={22} />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="right">
                   <PriorityTag priority={t.priority} />
-                  {onDelete ? (
-                    <button className="task-del" data-sound="delete" onClick={() => onDelete(t.id)} aria-label="Delete task" title="Delete task">
+                  {isAdmin || (t.assigneeIds || []).includes(user?.id) ? (
+                    <button className="task-edit" onClick={(e) => { e.stopPropagation(); onEditTask?.(t); }} aria-label="Edit task" title="Edit task">
+                      Edit
+                    </button>
+                  ) : null}
+                  {isAdmin ? (
+                    <button className="task-del" data-sound="delete" onClick={(e) => { e.stopPropagation(); onDelete(t.id); }} aria-label="Delete task" title="Delete task">
                       <IconClose size={12} />
                     </button>
                   ) : null}
@@ -175,10 +203,15 @@ function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAdd
               {teamMembers.map(m => (
                 <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--line)' }}>
                   <Avatar initials={m.initials} size={32} />
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</div>
                     <div className="t-eyebrow">{m.role}</div>
                   </div>
+                  {user?.id && group.createdBy === user.id && m.id !== user.id ? (
+                    <button className="x" onClick={() => onRemoveMember?.(m.memberId)} aria-label="Remove member" title="Remove member">
+                      <IconClose size={12} />
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>

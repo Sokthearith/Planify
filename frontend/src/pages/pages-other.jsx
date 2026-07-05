@@ -395,7 +395,7 @@ function ProgressPage({ tasks = [] }) {
   );
 }
 
-function NotificationsPage({ items, onMarkAll, onToggle, onDismiss }) {
+function NotificationsPage({ items, onMarkAll, onToggle, onDismiss, onAcceptInvite, onDeclineInvite }) {
   const [show, setShow] = React.useState('all');
   const list = show === 'unread' ? items.filter(i => i.unread) : items;
   const unreadCount = items.filter(i => i.unread).length;
@@ -434,12 +434,18 @@ function NotificationsPage({ items, onMarkAll, onToggle, onDismiss }) {
             <div className={'mark' + (n.kind === 'urgent' ? ' urgent' : '')}>
               {n.kind === 'urgent' ? <IconBell size={12} /> :
                n.kind === 'ai' ? <IconSpark size={12} /> :
-               n.kind === 'group' ? <IconGroups size={12} /> :
+               n.kind === 'invite' || n.kind === 'group' ? <IconGroups size={12} /> :
                <IconCheck size={12} />}
             </div>
             <div className="body">
               <div className="title">{n.title}</div>
               <div className="sub">{n.sub}</div>
+              {n.kind === 'invite' && n.inviteStatus === 'pending' ? (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button className="btn" style={{ padding: '4px 14px', fontSize: 12 }} onClick={e => { e.stopPropagation(); onAcceptInvite?.(n.id); }}>Accept</button>
+                  <button className="btn ghost" style={{ padding: '4px 14px', fontSize: 12 }} onClick={e => { e.stopPropagation(); onDeclineInvite?.(n.id); }}>Decline</button>
+                </div>
+              ) : null}
             </div>
             <div className="time">{n.time}</div>
             <button

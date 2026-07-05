@@ -99,11 +99,15 @@ export const markAllNotificationsRead = async (req, res) => {
 };
 
 export const acceptGroupInvite = async (req, res) => {
+  console.log(`acceptGroupInvite called: notificationId=${req.params.id}, userId=${req.user.id}`);
   const notification = await getNotificationForUser(req.params.id, req.user.id);
 
   if (!notification) {
+    console.log('Notification not found');
     return res.status(404).json({ message: "Notification Not Found" });
   }
+
+  console.log(`Notification found: type=${notification.type}, inviteStatus=${notification.inviteStatus}, groupId=${notification.groupId}`);
 
   if (
     notification.type !== "group_invite" ||
@@ -120,15 +124,21 @@ export const acceptGroupInvite = async (req, res) => {
     where: { groupId: notification.groupId, userId: req.user.id },
   });
 
+  console.log(`Existing GroupMember: ${existing ? 'found, status=' + existing.status : 'not found'}`);
+
   if (!existing) {
     await GroupMember.create({
       groupId: notification.groupId,
       userId: req.user.id,
+      status: "accepted",
     });
+  } else {
+    await existing.update({ status: "accepted" });
   }
 
   await notification.update({ inviteStatus: "accepted", isRead: true });
 
+  console.log(`Invite accepted for user ${req.user.id} in group ${notification.groupId}`);
   res.json({ message: "Group invite accepted", groupId: notification.groupId });
 };
 

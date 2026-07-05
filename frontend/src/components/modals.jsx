@@ -1,7 +1,7 @@
 /* Modals: Add Task, Create Group */
 
 import React from 'react';
-import { Avatar, SUBJECTS, TEAM_MEMBERS } from '../data.jsx';
+import { Avatar, SUBJECTS } from '../data.jsx';
 import { IconCheck, IconClose, IconPlus } from './icons.jsx';
 
 function Modal({ title, onClose, children, footer, width = 540 }) {
@@ -62,37 +62,48 @@ function SubjectSelect({ value, onChange, subjects, onAddSubject }) {
   );
 }
 
-function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd }) {
-  const [title, setTitle] = React.useState('');
-  const [due, setDue] = React.useState('');
-  const [subject, setSubject] = React.useState(context?.subject || '');
-  const [priority, setPriority] = React.useState('medium');
-  const [assignees, setAssignees] = React.useState([]);
-  const requiresAssign = !!context?.group;
-  const valid = title.trim() && (!requiresAssign || assignees.length > 0);
+function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd, editTask, onEdit, isAdmin = true }) {
+  const [title, setTitle] = React.useState(editTask?.title || '');
+  const [desc, setDesc] = React.useState(editTask?.desc || '');
+  const [due, setDue] = React.useState(editTask?.rawDeadline?.split('T')[0] || '');
+  const [subject, setSubject] = React.useState(editTask?.subject || context?.subject || '');
+  const [priority, setPriority] = React.useState(editTask?.priority === 'urgent' ? 'high' : (editTask?.priority || 'medium'));
+  const [assignees, setAssignees] = React.useState(editTask?.assigneeIds || editTask?.assignees || []);
+  const members = context?.members || [];
+  const isGroupTask = !!context?.group;
+  const valid = title.trim();
+  const isEditing = !!editTask;
 
   const toggle = id => setAssignees(a => a.includes(id) ? a.filter(x => x !== id) : [...a, id]);
 
   const submit = () => {
     if (!valid) return;
-    onAdd({ title, due, subject, priority, assignees });
+    if (isEditing) {
+      onEdit({ title, description: desc, due, subject, priority, assignees });
+    } else {
+      onAdd({ title, description: desc, due, subject, priority, assignees });
+    }
     onClose();
   };
 
   return (
     <Modal
-      title={context?.group ? `Add task to ${context.group}` : 'Create new task'}
+      title={isEditing ? 'Edit task' : (context?.group ? `Add task to ${context.group}` : 'Create new task')}
       onClose={onClose}
       footer={(
         <>
           <button className="btn ghost" data-sound="close" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={submit} disabled={!valid}>Add Task</button>
+          <button className="btn" onClick={submit} disabled={!valid}>{isEditing ? 'Save' : 'Add Task'}</button>
         </>
       )}
     >
       <div className="field">
         <label>Task title</label>
         <input className="input" placeholder="e.g. Complete problem set" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+      </div>
+      <div className="field">
+        <label>Description <span className="t-eyebrow">(optional)</span></label>
+        <textarea className="input" rows={3} placeholder="Add details…" value={desc} onChange={e => setDesc(e.target.value)} />
       </div>
       {!context?.group ? (
         <div className="field">
@@ -115,12 +126,12 @@ function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd }) {
           ))}
         </div>
       </div>
-      {requiresAssign ? (
-        <div className="field">
-          <label>Assign to members</label>
+      {isGroupTask && members.length > 0 ? (
+        <div className="field" style={isEditing && !isAdmin ? { opacity: 0.5 } : {}}>
+          <label>Assign to members <span className="t-eyebrow">(optional)</span></label>
           <div className="member-list">
-            {TEAM_MEMBERS.map(m => (
-              <div key={m.id} className={'member-row' + (assignees.includes(m.id) ? ' on' : '')} onClick={() => toggle(m.id)}>
+            {members.map(m => (
+              <div key={m.id} className={'member-row' + (assignees.includes(m.id) ? ' on' : '')} onClick={() => !(isEditing && !isAdmin) && toggle(m.id)}>
                 <span className={'check' + (assignees.includes(m.id) ? ' on' : '')}>
                   {assignees.includes(m.id) ? <IconCheck size={12} /> : null}
                 </span>
@@ -132,11 +143,6 @@ function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd }) {
               </div>
             ))}
           </div>
-          {requiresAssign && assignees.length === 0 ? (
-            <div style={{ color: 'var(--accent)', fontSize: 12, fontWeight: 600, letterSpacing: 0.04 }}>
-              Please assign at least one member
-            </div>
-          ) : null}
         </div>
       ) : null}
     </Modal>

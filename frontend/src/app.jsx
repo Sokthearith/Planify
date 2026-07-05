@@ -47,6 +47,7 @@ function App() {
   const [groups, setGroups] = React.useState([]);
   const [subjects, setSubjects] = usePersistentState('subjects', SUBJECTS);
   const [showAddTask, setShowAddTask] = React.useState(false);
+  const [editingTask, setEditingTask] = React.useState(null);
   const [showCreateGroup, setShowCreateGroup] = React.useState(false);
 
   React.useEffect(() => {
@@ -132,7 +133,9 @@ function App() {
       [gid]: (gt[gid] || []).map(t => t.id === id ? { ...t, done: !t.done } : t),
     }));
     try {
-      const saved = await PlanifyAPI.updateGroupTask(gid, id, { ...task, done: !task.done });
+      const lookup = {};
+      (currentGroup?.memberList || []).forEach(m => { lookup[m.id] = m.initials; });
+      const saved = await PlanifyAPI.updateGroupTask(gid, id, { ...task, done: !task.done }, lookup);
       setGroupTasks(gt => ({
         ...gt,
         [gid]: (gt[gid] || []).map(t => t.id === id ? saved : t),
@@ -183,13 +186,16 @@ function App() {
   };
   const addGroupTask = async (gid, data) => {
     try {
+      const lookup = {};
+      (currentGroup?.memberList || []).forEach(m => { lookup[m.id] = m.initials; });
       const task = await PlanifyAPI.createGroupTask(gid, {
         title: data.title,
+        description: data.description,
         subject: currentGroup?.subject || 'General',
         due: data.due,
         priority: data.priority,
         assignees: data.assignees,
-      });
+      }, lookup);
       setGroupTasks(gt => ({ ...gt, [gid]: [task, ...(gt[gid] || [])] }));
       notify('Task added to group');
     } catch (e) {
@@ -208,6 +214,57 @@ function App() {
       notify('Group created');
     } catch (e) {
       notify(e.message || 'Could not create group');
+    }
+  };
+  const addGroupMember = async (groupId, email) => {
+    await PlanifyAPI.addGroupMember(groupId, email);
+    notify('Invite sent to ' + email);
+  };
+  const removeGroupMember = async (groupId, memberId) => {
+    try {
+      await PlanifyAPI.removeGroupMember(groupId, memberId);
+      await refreshAppData();
+      notify('Member removed');
+    } catch (e) {
+      notify(e.message || 'Could not remove member');
+    }
+  };
+  const editGroupTask = async (gid, id, data) => {
+    try {
+      const lookup = {};
+      (currentGroup?.memberList || []).forEach(m => { lookup[m.id] = m.initials; });
+      const saved = await PlanifyAPI.updateGroupTask(gid, id, data, lookup);
+      setGroupTasks(gt => ({
+        ...gt,
+        [gid]: (gt[gid] || []).map(t => t.id === id ? saved : t),
+      }));
+      notify('Task updated');
+    } catch (e) {
+      notify(e.message || 'Could not update task');
+    }
+  };
+  const acceptInvite = async (notificationId) => {
+    try {
+      const res = await PlanifyAPI.acceptInvite(notificationId);
+      const loaded = await PlanifyAPI.loadGroupsWithTasks(currentUser);
+      setGroups(loaded.groups);
+      setGroupTasks(loaded.groupTasks);
+      setNotifications(await PlanifyAPI.listNotifications());
+      goto('groups');
+      notify('Invite accepted');
+      console.log('Groups after accept:', loaded.groups);
+    } catch (e) {
+      notify(e.message || 'Could not accept invite');
+      console.error('Accept invite error:', e);
+    }
+  };
+  const declineInvite = async (notificationId) => {
+    try {
+      await PlanifyAPI.declineInvite(notificationId);
+      setNotifications(arr => arr.filter(n => n.id !== notificationId));
+      notify('Invite declined');
+    } catch (e) {
+      notify(e.message || 'Could not decline invite');
     }
   };
   const markAllRead = async () => {
@@ -316,6 +373,9 @@ function App() {
         onToggle={(id) => toggleGroupTask(currentGroup.id, id)}
         onDelete={(id) => deleteGroupTask(currentGroup.id, id)}
         onAddTask={() => setShowAddTask(true)}
+        onEditTask={(task) => setEditingTask(task)}
+        onAddMember={(email) => addGroupMember(currentGroup.id, email)}
+        onRemoveMember={(memberId) => removeGroupMember(currentGroup.id, memberId)}
       />
     );
   } else if (page === 'home') {
@@ -331,7 +391,7 @@ function App() {
   } else if (page === 'progress') {
     content = <ProgressPage tasks={tasks} />;
   } else if (page === 'notifications') {
-    content = <NotificationsPage items={notifications} onMarkAll={markAllRead} onToggle={toggleNotif} onDismiss={dismissNotif} />;
+    content = <NotificationsPage items={notifications} onMarkAll={markAllRead} onToggle={toggleNotif} onDismiss={dismissNotif} onAcceptInvite={acceptInvite} onDeclineInvite={declineInvite} />;
   } else if (page === 'profile') {
     content = <ProfilePage user={currentUser} tasks={tasks} groups={groupsView} />;
   } else if (page === 'settings') {
@@ -431,13 +491,21 @@ function App() {
       />
       <main>{content}</main>
 
-      {showAddTask ? (
+      {showAddTask || editingTask ? (
         <AddTaskModal
-          context={currentGroup ? { group: currentGroup.title, subject: currentGroup.subject } : null}
+          key={editingTask ? 'edit-' + editingTask.id : 'add'}
+          context={currentGroup ? { group: currentGroup.title, subject: currentGroup.subject, members: currentGroup.memberList, createdBy: currentGroup.createdBy } : null}
           subjects={subjects}
+          editTask={editingTask}
+          isAdmin={currentGroup ? currentGroup.createdBy === currentUser?.id : true}
           onAddSubject={addSubject}
-          onClose={() => setShowAddTask(false)}
+          onClose={() => { setShowAddTask(false); setEditingTask(null); }}
           onAdd={(data) => currentGroup ? addGroupTask(currentGroup.id, data) : addTask(data)}
+          onEdit={(data) => {
+            const gid = currentGroup.id;
+            editGroupTask(gid, editingTask.id, data);
+            setEditingTask(null);
+          }}
         />
       ) : null}
 

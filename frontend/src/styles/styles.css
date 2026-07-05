@@ -349,7 +349,6 @@ button, input, select, textarea { max-width: 100%; }
   align-items: flex-start;
   position: relative;
   background: #fff;
-  transition: background .12s;
   min-width: 0;
 }
 .task:first-child { border-top: none; }
@@ -828,18 +827,34 @@ button, input, select, textarea { max-width: 100%; }
   animation: toast-in .2s ease;
 }
 
-/* task delete (revealed on row hover) */
+/* task delete */
 .task .task-del {
   width: 26px; height: 26px;
   border: 1px solid var(--line);
   background: #fff; color: var(--muted);
   display: grid; place-items: center;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity .12s, border-color .12s, color .12s;
+  transition: border-color .12s, color .12s;
 }
-.task:hover .task-del, .task .task-del:focus-visible { opacity: 1; }
 .task .task-del:hover { border-color: var(--accent); color: var(--accent); }
+
+/* task edit */
+.task .task-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color .12s, color .12s;
+}
+.task .task-edit:hover { border-color: var(--accent); color: var(--accent); }
 
 /* toggle switch */
 .switch {
@@ -940,7 +955,7 @@ button, input, select, textarea { max-width: 100%; }
 }
 
 /* notifications: clickable rows + dismiss */
-.notif { grid-template-columns: 32px 1fr auto auto; cursor: pointer; transition: background .12s; }
+.notif { grid-template-columns: 32px 1fr auto auto; cursor: pointer; }
 .notif:hover { background: var(--bg-sub); }
 .notif .dismiss {
   width: 26px; height: 26px;
