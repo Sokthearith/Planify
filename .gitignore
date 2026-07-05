@@ -5,8 +5,9 @@ backend/node_modules/
 .env
 .env.*
 backend/.env
+backend/test
 frontend/.env
-
+backend/.lazy.lua
 *.log
 vite-dev.log
 vite-dev.err.log
