@@ -5,8 +5,10 @@
 > Update this file whenever an important feature is added, changed, fixed, or removed.
 >
 > Before starting new work, developers and AI coding assistants should read this file first.
+>
+> Before and after meaningful project work, update this file together with `docs/PLANS.md` and `docs/WORKFLOW.md` when the plan, status, or workflow changes.
 
-**Last Updated:** July 4, 2026
+**Last Updated:** July 5, 2026
 
 ---
 
@@ -32,6 +34,7 @@ The application helps students:
 | ---------------------------- | ------------------ |
 | Frontend UI                  | Mostly complete    |
 | Responsive design            | Mostly complete    |
+| Frontend build tooling       | Implemented        |
 | Backend                      | In progress        |
 | Database                     | Mostly implemented |
 | Authentication               | Implemented        |
@@ -51,16 +54,41 @@ The application helps students:
 
 ## Frontend
 
-* Static React 18 loaded from CDN
-* React DOM loaded from CDN
-* Babel Standalone for in-browser JSX
+* Vite
+* React 18
+* React DOM
+* ES modules
 * JSX
 * CSS
 * React hooks
 * Fetch API
 * LocalStorage for selected frontend state
 
-There is currently no frontend `package.json` or build step.
+The frontend has a standard npm/Vite setup:
+
+```text
+frontend/package.json
+frontend/package-lock.json
+frontend/vite.config.js
+frontend/src/main.jsx
+```
+
+Main frontend commands:
+
+```bash
+npm install
+npm run dev
+npm run build
+npm run preview
+```
+
+Generated frontend output:
+
+* `frontend/node_modules/` from dependency installation
+* `frontend/dist/` from `npm run build`
+* `frontend/vite-dev.log` and `frontend/vite-dev.err.log` from local background dev-server runs
+
+These generated outputs are ignored by git and should not be edited directly.
 
 ## Backend
 
@@ -80,17 +108,17 @@ There is currently no frontend `package.json` or build step.
 # Main Architecture
 
 ```text
-React Frontend
+Vite React frontend
       |
       | REST API
       v
-Express Backend
+Express backend
       |
       v
 Sequelize ORM
       |
       v
-MySQL Database
+MySQL database
 ```
 
 Backend structure:
@@ -279,6 +307,11 @@ WebSockets are not currently used.
 * [x] Toast feedback
 * [x] Task sorting
 * [x] Notification filtering
+* [x] Vite React project setup
+* [x] Frontend npm scripts
+* [x] JSX files converted to ES modules
+* [x] CSS imported through `frontend/src/main.jsx`
+* [x] React CDN, React DOM CDN, and Babel Standalone removed from `frontend/index.html`
 
 ---
 
@@ -336,22 +369,22 @@ Implemented relationships include:
 
 ```text
 User
- ├── Tasks
- ├── Schedules
- ├── Study Groups
- ├── Group Memberships
- └── Notifications
+  - Tasks
+  - Schedules
+  - Study Groups
+  - Group Memberships
+  - Notifications
 ```
 
 ```text
 Study Group
- ├── Members
- └── Group Tasks
+  - Members
+  - Group Tasks
 ```
 
 ```text
 Task
- └── Notifications
+  - Notifications
 ```
 
 ---
@@ -377,7 +410,6 @@ Task
 * [ ] Test all frontend-backend integrations
 * [ ] Verify schedule system completely
 * [ ] Check remaining localStorage-only features
-* [ ] Decide whether to keep the static CDN frontend or add a package/build setup
 * [ ] Improve error handling
 
 ## Medium Priority
@@ -423,15 +455,16 @@ Frontend and backend integration
 
 Main priorities:
 
-1. Verify current code
-2. Fix integration bugs
-3. Complete schedule integration
-4. Remove duplicate frontend-only logic
-5. Test authentication
-6. Test tasks
-7. Test groups
-8. Test notifications
-9. Add automated tests
+1. Keep docs current before and after meaningful work
+2. Verify current code
+3. Fix integration bugs
+4. Complete schedule integration
+5. Remove duplicate frontend-only logic
+6. Test authentication
+7. Test tasks
+8. Test groups
+9. Test notifications
+10. Add automated tests
 
 ---
 
@@ -439,6 +472,10 @@ Main priorities:
 
 Recent important progress includes:
 
+* Frontend migration from React CDN + Babel Standalone to Vite React
+* Addition of `frontend/package.json`, `frontend/package-lock.json`, `frontend/vite.config.js`, and `frontend/src/main.jsx`
+* Conversion of frontend JSX files to ES module import/export syntax
+* Verified frontend install, production build, and Vite dev server response
 * Authentication implementation
 * Personal task controller and routes
 * Notification system
@@ -455,7 +492,9 @@ Recent important progress includes:
 Before modifying code:
 
 * [ ] Read this file
+* [ ] Read `docs/PLANS.md`
 * [ ] Read `docs/WORKFLOW.md`
+* [ ] Update these docs first if they are stale or if the planned work changes project direction
 * [ ] Pull the latest changes
 * [ ] Check the current branch
 * [ ] Check `git status`
@@ -471,6 +510,8 @@ After completing a feature or fix:
 * [ ] Test the feature
 * [ ] Check `git diff`
 * [ ] Update this file
+* [ ] Update `docs/PLANS.md`
+* [ ] Update `docs/WORKFLOW.md` if any workflow changed
 * [ ] Mark completed items with `[x]`
 * [ ] Add new unfinished work with `[ ]`
 * [ ] Write a clear commit message
@@ -483,15 +524,17 @@ After completing a feature or fix:
 Any AI coding assistant working on Planify should:
 
 1. Read this entire file first.
-2. Read `docs/WORKFLOW.md`.
-3. Inspect the related code before changing anything.
-4. Do not assume this file is perfectly current.
-5. Compare this file with the actual code.
-6. Update this file after important work.
-7. Do not rewrite unrelated files.
-8. Do not replace working logic without explaining why.
-9. Preserve the current architecture unless a change is necessary.
-10. Report conflicts between documentation and code.
+2. Read `docs/PLANS.md`.
+3. Read `docs/WORKFLOW.md`.
+4. Inspect the related code before changing anything.
+5. Do not assume this file is perfectly current.
+6. Compare this file with the actual code.
+7. Update docs before work when the docs are stale or the plan changes.
+8. Update docs after important work.
+9. Do not rewrite unrelated files.
+10. Do not replace working logic without explaining why.
+11. Preserve the current architecture unless a change is necessary.
+12. Report conflicts between documentation and code.
 
 ---
 
@@ -527,3 +570,39 @@ Copy this section when completing major work:
 - [x] Manual test
 - [ ] Automated test
 ```
+
+---
+
+## Update: 2026-07-05
+
+### Completed
+
+- [x] Read `docs/PLANS.md`, `docs/PROGESS.md`, and `docs/WORKFLOW.md`.
+- [x] Updated docs to match the current Vite React frontend state.
+- [x] Added the standing instruction to update the docs before and after meaningful project work.
+
+### Changed
+
+- Replaced stale React CDN and Babel Standalone frontend descriptions with the current Vite React setup.
+- Documented generated frontend outputs and npm commands.
+- Kept schedule integration and remaining backend verification work marked as unfinished.
+
+### Files Changed
+
+- `docs/PLANS.md`
+- `docs/PROGESS.md`
+- `docs/WORKFLOW.md`
+
+### Still Remaining
+
+- [ ] Verify frontend-backend integration feature by feature.
+- [ ] Complete schedule integration through `frontend/src/api.jsx`.
+
+### Known Problems
+
+- Schedule UI still appears local-only from the current documentation and needs implementation verification.
+
+### Tested
+
+- [x] Documentation reviewed and updated.
+- [ ] No application runtime test was needed for this documentation-only update.
