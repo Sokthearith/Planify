@@ -195,6 +195,18 @@ const PlanifyAPI = (() => {
       method: 'POST',
       body: { name, email, password },
     })),
+    requestPasswordReset: async (email) => request('/auth/forgot-password', {
+      method: 'POST',
+      body: { email },
+    }),
+    verifyPasswordResetCode: async (email, code) => request('/auth/verify-reset-code', {
+      method: 'POST',
+      body: { email, code },
+    }),
+    resetPassword: async (email, code, password) => request('/auth/reset-password', {
+      method: 'POST',
+      body: { email, code, password },
+    }),
     me: async () => {
       const data = await request('/auth/me');
       localStorage.setItem(USER_KEY, JSON.stringify(data.data));

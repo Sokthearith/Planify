@@ -1,6 +1,7 @@
 /* Landing, SignIn, CreateAccount */
 
 import React from 'react';
+import PlanifyAPI from '../api.jsx';
 import {
   IconArrow,
   IconBack,
@@ -206,7 +207,24 @@ function LandingPage({ onSignIn, onGetStarted, auth, onOpenApp, onSignOut }) {
   );
 }
 
-function SignInPage({ onBack, onSubmit, onSwitchToRegister }) {
+function AuthMessage({ type = 'error', children }) {
+  if (!children) return null;
+  return (
+    <div className={'auth-message ' + type}>
+      {children}
+    </div>
+  );
+}
+
+const strongPassword = (value) => (
+  value.length >= 8 &&
+  /[a-z]/.test(value) &&
+  /[A-Z]/.test(value) &&
+  /\d/.test(value) &&
+  /[!@#$%^&*(),.?":{}|<>]/.test(value)
+);
+
+function SignInPage({ onBack, onSubmit, onSwitchToRegister, onForgotPassword }) {
   const [email, setEmail] = React.useState('');
   const [pw, setPw] = React.useState('');
   const [error, setError] = React.useState('');
@@ -255,15 +273,13 @@ function SignInPage({ onBack, onSubmit, onSwitchToRegister }) {
             <PasswordField placeholder="••••••••" value={pw} onChange={e => setPw(e.target.value)} />
           </div>
 
-          {error ? (
-            <div style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600 }}>{error}</div>
-          ) : null}
+          <AuthMessage>{error}</AuthMessage>
 
           <div className="row-between">
             <label className="check-inline">
               <input type="checkbox" /> Remember me
             </label>
-            <button type="button" className="link muted">Forgot password?</button>
+            <button type="button" className="link muted" onClick={onForgotPassword}>Forgot password?</button>
           </div>
 
           <button type="submit" className="big-btn" disabled={loading}>
@@ -280,6 +296,153 @@ function SignInPage({ onBack, onSubmit, onSwitchToRegister }) {
   );
 }
 
+function ForgotPasswordPage({ onBack, onDone }) {
+  const [step, setStep] = React.useState('email');
+  const [email, setEmail] = React.useState('');
+  const [code, setCode] = React.useState('');
+  const [pw, setPw] = React.useState('');
+  const [confirmPw, setConfirmPw] = React.useState('');
+  const [message, setMessage] = React.useState('');
+  const [devCode, setDevCode] = React.useState('');
+  const [error, setError] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+
+  const requestCode = async e => {
+    e.preventDefault();
+    const cleanEmail = email.trim();
+    if (!/\S+@\S+\.\S+/.test(cleanEmail)) { setError('Enter the email for your account.'); return; }
+    setError('');
+    setMessage('');
+    setLoading(true);
+    try {
+      const data = await PlanifyAPI.requestPasswordReset(cleanEmail);
+      setEmail(cleanEmail);
+      setMessage(data.message || 'Verification code sent.');
+      setDevCode(data.devCode || '');
+      setStep('code');
+    } catch (err) {
+      setError(err.message || 'Could not send verification code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyCode = async e => {
+    e.preventDefault();
+    if (!code.trim()) { setError('Enter the verification code.'); return; }
+    setError('');
+    setMessage('');
+    setLoading(true);
+    try {
+      const data = await PlanifyAPI.verifyPasswordResetCode(email, code);
+      setMessage(data.message || 'Code verified.');
+      setStep('password');
+    } catch (err) {
+      setError(err.message || 'Could not verify code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetPassword = async e => {
+    e.preventDefault();
+    if (!strongPassword(pw)) {
+      setError('Use 8+ characters with upper/lowercase, a number, and a special character.');
+      return;
+    }
+    if (pw !== confirmPw) { setError('Passwords do not match.'); return; }
+    setError('');
+    setMessage('');
+    setLoading(true);
+    try {
+      const data = await PlanifyAPI.resetPassword(email, code, pw);
+      setMessage(data.message || 'Password reset successfully.');
+      setTimeout(onDone, 900);
+    } catch (err) {
+      setError(err.message || 'Could not reset password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="auth">
+      <div className="auth-left">
+        <div>
+          <div className="brand">Planify<span className="dot"></span></div>
+          <div className="lead">Reset your password with a short verification code.</div>
+        </div>
+        <div className="marquee">RESET<br />ACCESS.</div>
+        <div className="bullets">
+          <div>Request a code</div>
+          <div>Verify ownership</div>
+          <div>Choose a new password</div>
+        </div>
+      </div>
+
+      <div className="auth-right">
+        <button className="back-btn" onClick={onBack}><IconBack size={12} /> Back</button>
+        <h1 className="title">Forgot password.</h1>
+        <p className="sub">
+          {step === 'email' ? 'Enter your account email to get a verification code.' : null}
+          {step === 'code' ? `Enter the code sent for ${email}.` : null}
+          {step === 'password' ? 'Code verified. Choose your new password.' : null}
+        </p>
+
+        <form className="form" onSubmit={step === 'email' ? requestCode : step === 'code' ? verifyCode : resetPassword}>
+          {step === 'email' ? (
+            <div className="field">
+              <label>Email</label>
+              <input className="input" type="email" placeholder="josh@university.edu" value={email} onChange={e => setEmail(e.target.value)} autoFocus />
+            </div>
+          ) : null}
+
+          {step === 'code' ? (
+            <div className="field">
+              <label>Verification code</label>
+              <input className="input auth-code-input" inputMode="numeric" maxLength={6} placeholder="123456" value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus />
+            </div>
+          ) : null}
+
+          {step === 'password' ? (
+            <>
+              <div className="field">
+                <label>New password</label>
+                <PasswordField placeholder="8+ chars, number, symbol" value={pw} onChange={e => setPw(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Confirm password</label>
+                <PasswordField placeholder="Repeat new password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
+              </div>
+            </>
+          ) : null}
+
+          <AuthMessage>{error}</AuthMessage>
+          <AuthMessage type="success">{message}</AuthMessage>
+
+          {devCode ? (
+            <div className="auth-dev-code">
+              Local dev code: <strong>{devCode}</strong>
+            </div>
+          ) : null}
+
+          <button type="submit" className="big-btn" disabled={loading}>
+            {step === 'email' ? (loading ? 'Sending…' : 'Send code') : null}
+            {step === 'code' ? (loading ? 'Verifying…' : 'Verify code') : null}
+            {step === 'password' ? (loading ? 'Saving…' : 'Reset password') : null}
+            <IconArrow size={14} />
+          </button>
+
+          <div className="alt">
+            Remembered your password?
+            <button type="button" className="link" onClick={onDone}>Sign in</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
   const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
@@ -287,7 +450,7 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
   const [agree, setAgree] = React.useState(false);
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
-  const strongEnough = pw.length >= 8 && /[a-z]/.test(pw) && /[A-Z]/.test(pw) && /\d/.test(pw) && /[!@#$%^&*(),.?":{}|<>]/.test(pw);
+  const strongEnough = strongPassword(pw);
   const valid = name.trim() && /\S+@\S+\.\S+/.test(email) && strongEnough && agree;
   const submit = async e => {
     e.preventDefault();
@@ -340,9 +503,7 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
             <PasswordField placeholder="8+ chars, number, symbol" value={pw} onChange={e => setPw(e.target.value)} />
           </div>
 
-          {error ? (
-            <div style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600 }}>{error}</div>
-          ) : null}
+          <AuthMessage>{error}</AuthMessage>
 
           <label className="check-inline" style={{ fontSize: 13, color: 'var(--muted)' }}>
             <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} />
@@ -363,6 +524,6 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
   );
 }
 
-Object.assign(window, { LandingPage, SignInPage, CreateAccountPage });
+Object.assign(window, { LandingPage, SignInPage, ForgotPasswordPage, CreateAccountPage });
 
-export { LandingPage, SignInPage, CreateAccountPage };
+export { LandingPage, SignInPage, ForgotPasswordPage, CreateAccountPage };

@@ -8,7 +8,7 @@
 >
 > Before and after meaningful project work, update this file together with `docs/PLANS.md` and `docs/WORKFLOW.md` when the plan, status, or workflow changes.
 
-**Last Updated:** July 5, 2026
+**Last Updated:** July 6, 2026
 
 ---
 
@@ -150,12 +150,18 @@ Database
 * [x] Password hashing with bcrypt
 * [x] Password strength validation
 * [x] Get current authenticated user
+* [x] Forgot-password verification code flow
+* [x] Password reset after code verification
 
 ### Notes
 
 Passwords are hashed with bcrypt.
 
 Passwords are not encrypted and cannot be decrypted.
+
+Forgot-password reset codes are hashed before storage, expire after 10 minutes, and are cleared after a successful password reset.
+
+Password reset email delivery uses SMTP when configured through `SMTP_*` environment variables. In local development without `SMTP_HOST`, the reset code is logged by the backend and returned to the frontend for testing.
 
 The frontend currently sends authentication tokens using:
 
@@ -394,6 +400,8 @@ Task
 * [x] Password hashing
 * [x] Password validation
 * [x] JWT authentication
+* [x] Hashed password reset verification codes
+* [x] Expiring password reset verification codes
 * [x] Protected routes
 * [x] User ownership checks
 * [x] Group membership checks
@@ -418,7 +426,7 @@ Task
 * [ ] Add centralized Express error middleware
 * [ ] Add proper request validation
 * [ ] Add database migrations
-* [ ] Improve authentication consistency
+* [ ] Add automated authentication tests
 
 ## Low Priority / Future
 
@@ -426,6 +434,7 @@ Task
 * [ ] Real-time group activity
 * [ ] Instant notifications
 * [ ] Email reminders
+* [ ] Configure production SMTP provider and sender identity
 * [ ] Database backup and restore tools
 * [ ] Advanced AI scheduling
 * [ ] Production analytics
@@ -484,6 +493,8 @@ Recent important progress includes:
 * Group task logic fixes
 * Group invitation logic
 * Separation of personal tasks and group tasks
+* Sign-in fix by removing login-time MX lookup
+* Forgot-password code verification and password reset flow
 
 ---
 
@@ -570,6 +581,56 @@ Copy this section when completing major work:
 - [x] Manual test
 - [ ] Automated test
 ```
+
+---
+
+## Update: 2026-07-06
+
+### Completed
+
+- [x] Fixed sign-in for existing/local accounts by removing the login-time DNS MX lookup.
+- [x] Added forgot-password code request, code verification, and password reset backend routes.
+- [x] Added reset code storage fields to the user model.
+- [x] Added frontend forgot-password UI flow.
+- [x] Added SMTP-based reset email support with local development fallback code display.
+
+### Changed
+
+- Login now validates email format and password presence, then checks the stored user/password directly.
+- Registration still validates email domain MX records.
+- Reset codes are hashed with bcrypt, expire after 10 minutes, and are cleared after password reset.
+- `nodemailer` was added to the backend for SMTP delivery.
+
+### Files Changed
+
+- `backend/src/controllers/authController.js`
+- `backend/src/routes/authRoute.js`
+- `backend/src/models/User.js`
+- `backend/package.json`
+- `backend/package-lock.json`
+- `frontend/src/api.jsx`
+- `frontend/src/app.jsx`
+- `frontend/src/pages/pages-auth.jsx`
+- `frontend/src/styles/styles-auth.css`
+- `README.md`
+- `docs/PROGESS.md`
+
+### Still Remaining
+
+- [ ] Configure real production SMTP values before deploying password reset email.
+- [ ] Add automated authentication tests.
+
+### Known Problems
+
+- Local development without `SMTP_HOST` returns and displays the reset code for testing only.
+- Existing unrelated package-lock and `.gitignore` changes may still need review before commit.
+
+### Tested
+
+- [x] `node --check backend/src/controllers/authController.js`
+- [x] `node --check backend/src/routes/authRoute.js`
+- [x] `npm run build` in `frontend`
+- [ ] Full manual browser reset flow against a running database.
 
 ---
 

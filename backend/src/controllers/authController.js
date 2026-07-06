@@ -1,7 +1,13 @@
 import bcrypt from "bcrypt";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
 import { User } from "../models/index.js";
 import generateToken from "../utils/generateToken.js";
 import { promises as dns } from "dns";
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const normalizeEmail = (email = "") => email.trim().toLowerCase();
 
 const validatePassword = (password) => {
   const errors = [];
@@ -16,25 +22,69 @@ const validatePassword = (password) => {
   return errors;
 };
 
+const validateEmailDomain = async (email) => {
+  const domain = email.split("@")[1];
+  const mx = await Promise.race([
+    dns.resolveMx(domain),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
+  ]);
+  return mx && mx.length > 0;
+};
+
+const resetCodeDevResponse = (code, user, delivery = "Code logged by backend and returned for local development.") => {
+  console.log(`Password reset code for ${user.email}: ${code}`);
+  return {
+    devCode: code,
+    delivery,
+  };
+};
+
+const deliverResetCode = async (code, user) => {
+  if (!process.env.SMTP_HOST) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Password reset email is not configured");
+    }
+    return resetCodeDevResponse(code, user);
+  }
+
+  const port = Number(process.env.SMTP_PORT || 587);
+  const auth = process.env.SMTP_USER || process.env.SMTP_PASS ? {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  } : undefined;
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port,
+    secure: process.env.SMTP_SECURE === "true" || port === 465,
+    auth,
+  });
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || "Planify <no-reply@planify.local>",
+    to: user.email,
+    subject: "Your Planify password reset code",
+    text: `Your Planify password reset code is ${code}. It expires in 10 minutes.`,
+    html: `<p>Your Planify password reset code is <strong>${code}</strong>.</p><p>It expires in 10 minutes.</p>`,
+  });
+
+  return { delivery: "Verification code emailed." };
+};
+
 export const register = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, password } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   if (!name || !email) {
     return res.status(400).json({ message: "Name and email are required" });
   }
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ message: "Invalid email format" });
   }
 
-  const domain = email.split("@")[1];
   try {
-    const mx = await Promise.race([
-      dns.resolveMx(domain),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
-    ]);
-    if (!mx || mx.length === 0) {
+    if (!(await validateEmailDomain(email))) {
       return res.status(400).json({ message: "Email domain does not accept mail" });
     }
   } catch (e) {
@@ -70,26 +120,14 @@ export const register = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  const { email, password } = req.body;
+  const { password } = req.body;
+  const email = normalizeEmail(req.body.email);
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!email || !emailRegex.test(email)) {
     return res.status(400).json({ message: "Invalid email format" });
   }
-
-  const domain = email.split("@")[1];
-  try {
-    const mx = await Promise.race([
-      dns.resolveMx(domain),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
-    ]);
-    if (!mx || mx.length === 0) {
-      return res.status(400).json({ message: "Email domain does not accept mail" });
-    }
-  } catch (e) {
-    if (e.message === "timeout") {
-      return res.status(400).json({ message: "Email domain lookup timed out" });
-    }
-    return res.status(400).json({ message: "Email domain not found" });
+  if (!password) {
+    return res.status(400).json({ message: "Password is required" });
   }
 
   const user = await User.findOne({ where: { email } });
@@ -110,6 +148,93 @@ export const login = async (req, res) => {
     },
     token,
   });
+};
+
+export const forgotPassword = async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ message: "Invalid email format" });
+  }
+
+  const user = await User.findOne({ where: { email } });
+  if (!user) {
+    return res.json({
+      message: "If an account exists for that email, a verification code has been sent.",
+    });
+  }
+
+  const code = crypto.randomInt(100000, 1000000).toString();
+  const salt = await bcrypt.genSalt(10);
+  user.resetPasswordCode = await bcrypt.hash(code, salt);
+  user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
+  await user.save();
+
+  let deliveryMeta;
+  try {
+    deliveryMeta = await deliverResetCode(code, user);
+  } catch (e) {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(502).json({ message: "Could not send verification code" });
+    }
+    console.error(`Password reset email delivery failed: ${e.message}`);
+    deliveryMeta = resetCodeDevResponse(code, user, "Email delivery failed; code returned for local development.");
+  }
+
+  res.json({
+    message: "Verification code sent. It expires in 10 minutes.",
+    ...deliveryMeta,
+  });
+};
+
+export const verifyResetCode = async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const code = String(req.body.code || "").trim();
+
+  if (!email || !emailRegex.test(email) || !code) {
+    return res.status(400).json({ message: "Email and verification code are required" });
+  }
+
+  const user = await User.findOne({ where: { email } });
+  const expired = !user?.resetPasswordExpires || user.resetPasswordExpires.getTime() < Date.now();
+  const match = user?.resetPasswordCode ? await bcrypt.compare(code, user.resetPasswordCode) : false;
+
+  if (!user || expired || !match) {
+    return res.status(400).json({ message: "Invalid or expired verification code" });
+  }
+
+  res.json({ message: "Code verified. Choose a new password." });
+};
+
+export const resetPassword = async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const code = String(req.body.code || "").trim();
+  const { password } = req.body;
+
+  if (!email || !emailRegex.test(email) || !code) {
+    return res.status(400).json({ message: "Email and verification code are required" });
+  }
+
+  const errors = validatePassword(password);
+  if (errors.length > 0) {
+    return res.status(400).json({ message: "Password too weak", errors });
+  }
+
+  const user = await User.findOne({ where: { email } });
+  const expired = !user?.resetPasswordExpires || user.resetPasswordExpires.getTime() < Date.now();
+  const match = user?.resetPasswordCode ? await bcrypt.compare(code, user.resetPasswordCode) : false;
+
+  if (!user || expired || !match) {
+    return res.status(400).json({ message: "Invalid or expired verification code" });
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  user.password = await bcrypt.hash(password, salt);
+  user.resetPasswordCode = null;
+  user.resetPasswordExpires = null;
+  await user.save();
+
+  res.json({ message: "Password reset successfully. You can sign in now." });
 };
 
 export const logout = async (req, res) => {

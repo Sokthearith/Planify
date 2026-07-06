@@ -22,7 +22,7 @@ import {
   SchedulePage,
   SettingsPage,
 } from './pages/pages-other.jsx';
-import { LandingPage, SignInPage, CreateAccountPage } from './pages/pages-auth.jsx';
+import { LandingPage, SignInPage, ForgotPasswordPage, CreateAccountPage } from './pages/pages-auth.jsx';
 import { OnboardingFlow } from './pages/pages-onboarding.jsx';
 import { AISchedulePage } from './pages/pages-ai-schedule.jsx';
 
@@ -38,7 +38,7 @@ function App() {
   const storedAuth = PlanifyAPI.getStoredAuth();
   const [currentUser, setCurrentUser] = React.useState(storedAuth?.user || null);
   const [isAuthed, setIsAuthed] = React.useState(!!storedAuth?.token);
-  const [authView, setAuthView] = React.useState(storedAuth?.token ? 'app' : 'landing'); // 'landing' | 'signin' | 'register' | 'onboarding' | 'app'
+  const [authView, setAuthView] = React.useState(storedAuth?.token ? 'app' : 'landing'); // 'landing' | 'signin' | 'forgot' | 'register' | 'onboarding' | 'app'
   const [page, setPage] = React.useState('home');
   const [openGroupId, setOpenGroupId] = React.useState(null);
   const [tasks, setTasks] = React.useState([]);
@@ -425,6 +425,14 @@ function App() {
             setAuthView('app');
           }}
           onSwitchToRegister={() => setAuthView('register')}
+          onForgotPassword={() => setAuthView('forgot')}
+        />
+      );
+    } else if (authView === 'forgot') {
+      authContent = (
+        <ForgotPasswordPage
+          onBack={() => setAuthView('signin')}
+          onDone={() => setAuthView('signin')}
         />
       );
     } else if (authView === 'register') {

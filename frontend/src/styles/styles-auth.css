@@ -134,6 +134,40 @@
 
 .auth-right .link:hover { text-decoration: underline; }
 
+.auth-message {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.auth-message.error {
+  color: var(--accent);
+}
+
+.auth-message.success {
+  color: #137a35;
+}
+
+.auth-dev-code {
+  border: 1px solid var(--line);
+  background: var(--bg-sub);
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.auth-dev-code strong {
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  letter-spacing: .18em;
+}
+
+.auth-code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 22px;
+  letter-spacing: .2em;
+}
+
 .password-wrap {
   position: relative;
 }

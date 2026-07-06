@@ -152,7 +152,17 @@ JWT_SECRET=your_jwt_secret
 
 NODE_ENV=development
 FRONTEND_ORIGIN=http://localhost:5173
+
+# Optional, required for real forgot-password emails outside local development
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_password
+SMTP_FROM="Planify <no-reply@example.com>"
+SMTP_SECURE=false
 ```
+
+In local development without `SMTP_HOST`, forgot-password verification codes are logged by the backend and returned to the frontend so the flow can be tested.
 
 Start the backend:
 
