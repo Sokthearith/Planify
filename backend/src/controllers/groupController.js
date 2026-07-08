@@ -1,5 +1,6 @@
 import { StudyGroup, GroupMember, GroupTask, User } from "../models/index.js";
 import createNotification from "../utils/createNotification.js";
+import { emitToGroup, emitToGroupMembers, emitToUser } from "../utils/realtime.js";
 
 const allowedPriorities = ["high", "medium", "low"];
 
@@ -73,6 +74,7 @@ export const createGroup = async (req, res) => {
       },
     ],
   });
+  emitToUser(req.user.id, "group:created", full);
   res.status(201).json(full);
 };
 
@@ -134,6 +136,7 @@ export const updateGroup = async (req, res) => {
     name: req.body.name ?? group.name,
     subject: req.body.subject ?? group.subject,
   });
+  await emitToGroupMembers(group.id, "group:updated", group);
   res.status(200).json(group);
 };
 
@@ -144,6 +147,8 @@ export const deleteGroup = async (req, res) => {
   if (group.createBy !== req.user.id)
     return res.status(403).json({ message: "Only the creator can delete" });
 
+  await emitToGroupMembers(req.params.id, "group:deleted", { id: req.params.id });
+  emitToGroup(req.params.id, "group:deleted", { id: req.params.id });
   await group.destroy();
   res.json({ message: "Group deleted" });
 };
@@ -183,6 +188,7 @@ export const addMember = async (req, res) => {
   const full = await GroupMember.findByPk(member.id, {
     include: [{ model: User, attributes: ["id", "name", "email"] }],
   });
+  await emitToGroupMembers(group.id, "group:member-added", full);
   res.status(201).json(full);
 };
 
@@ -199,6 +205,11 @@ export const removeMember = async (req, res) => {
     return res.status(403).json({ message: "Not Authorized" });
 
   await member.destroy();
+  await emitToGroupMembers(req.params.id, "group:member-removed", {
+    groupId: req.params.id,
+    memberId: req.params.memberId,
+    userId: member.userId,
+  });
   res.json({ message: "Member removed" });
 };
 
@@ -245,6 +256,8 @@ export const createGroupTask = async (req, res) => {
     message: `Group task created: ${task.title}`,
   });
 
+  await emitToGroupMembers(group.id, "group-task:created", task);
+
   res.status(201).json(task);
 };
 
@@ -276,6 +289,7 @@ export const updateGroupTask = async (req, res) => {
   if (error) return res.status(400).json(error);
 
   await task.update(taskData);
+  await emitToGroupMembers(group.id, "group-task:updated", task);
   res.json(task);
 };
 
@@ -298,6 +312,10 @@ export const deleteGroupTask = async (req, res) => {
   if (!task) return res.status(404).json({ message: "Task Not Found" });
 
   await task.destroy();
+  await emitToGroupMembers(group.id, "group-task:deleted", {
+    groupId: group.id,
+    id: req.params.taskId,
+  });
   res.json({ message: "Task deleted" });
 };
 
@@ -316,6 +334,11 @@ export const acceptInvite = async (req, res) => {
   if (!membership) return res.status(404).json({ message: "Invite not found" });
 
   await membership.update({ status: "accepted" });
+  await emitToGroupMembers(req.params.id, "group:member-updated", {
+    groupId: req.params.id,
+    userId: req.user.id,
+    status: "accepted",
+  });
   res.status(200).json({ message: "Invite accepted" });
 };
 

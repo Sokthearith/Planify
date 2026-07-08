@@ -4,6 +4,7 @@ import {
   StudyGroup,
   Task,
 } from "../models/index.js";
+import { emitToGroupMembers, emitToUser } from "../utils/realtime.js";
 
 const allowedTypes = ["task", "group", "group_invite", "ai", "system"];
 
@@ -53,6 +54,8 @@ export const createNotification = async (req, res) => {
     message: message.trim(),
   });
 
+  emitToUser(req.user.id, "notification:created", notification);
+
   res.status(201).json(notification);
 };
 
@@ -86,6 +89,7 @@ export const markNotificationRead = async (req, res) => {
   }
 
   await notification.update({ isRead: true });
+  emitToUser(req.user.id, "notification:updated", notification);
   res.json(notification);
 };
 
@@ -137,6 +141,12 @@ export const acceptGroupInvite = async (req, res) => {
   }
 
   await notification.update({ inviteStatus: "accepted", isRead: true });
+  emitToUser(req.user.id, "notification:updated", notification);
+  await emitToGroupMembers(notification.groupId, "group:member-updated", {
+    groupId: notification.groupId,
+    userId: req.user.id,
+    status: "accepted",
+  });
 
   console.log(`Invite accepted for user ${req.user.id} in group ${notification.groupId}`);
   res.json({ message: "Group invite accepted", groupId: notification.groupId });
@@ -157,6 +167,7 @@ export const declineGroupInvite = async (req, res) => {
   }
 
   await notification.update({ inviteStatus: "declined", isRead: true });
+  emitToUser(req.user.id, "notification:updated", notification);
 
   res.json({ message: "Group invite declined" });
 };
@@ -168,5 +179,6 @@ export const deleteNotification = async (req, res) => {
   }
 
   await notification.destroy();
+  emitToUser(req.user.id, "notification:deleted", { id: req.params.id });
   res.json({ message: "Notification deleted" });
 };

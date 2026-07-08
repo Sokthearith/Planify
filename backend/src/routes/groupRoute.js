@@ -16,6 +16,7 @@ import {
   rejectInvite,
 } from "../controllers/groupController.js";
 import { getMemberProgress } from "../controllers/groupTaskController.js";
+import { getGroupMessages } from "../controllers/groupChatController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = Router();
@@ -29,6 +30,7 @@ router.post("/:id/reject", rejectInvite);
 router.route("/:id/members/progress").get(getMemberProgress);
 router.route("/:id/members").post(addMember);
 router.route("/:id/members/:memberId").delete(removeMember);
+router.route("/:id/messages").get(getGroupMessages);
 router.route("/:id/tasks").get(getGroupTasks).post(createGroupTask);
 router.route("/:id/tasks/:taskId").put(updateGroupTask).delete(deleteGroupTask);
 

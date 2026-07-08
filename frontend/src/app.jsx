@@ -45,9 +45,12 @@ function App() {
   const [groupTasks, setGroupTasks] = React.useState({});
   const [notifications, setNotifications] = React.useState([]);
   const [groups, setGroups] = React.useState([]);
+  const [groupMessages, setGroupMessages] = React.useState({});
+  const [activeSchedule, setActiveSchedule] = React.useState(null);
   const [subjects, setSubjects] = usePersistentState('subjects', SUBJECTS);
   const [showAddTask, setShowAddTask] = React.useState(false);
   const [editingTask, setEditingTask] = React.useState(null);
+  const [initialTaskDraft, setInitialTaskDraft] = React.useState(null);
   const [showCreateGroup, setShowCreateGroup] = React.useState(false);
 
   React.useEffect(() => {
@@ -60,15 +63,17 @@ function App() {
     setPage(p);
   };
   const refreshAppData = async (user = currentUser) => {
-    const [loadedTasks, loadedGroups, loadedNotifications] = await Promise.all([
+    const [loadedTasks, loadedGroups, loadedNotifications, loadedSchedule] = await Promise.all([
       PlanifyAPI.listTasks(),
       PlanifyAPI.loadGroupsWithTasks(user),
       PlanifyAPI.listNotifications(),
+      PlanifyAPI.getActiveSchedule(),
     ]);
     setTasks(loadedTasks);
     setGroups(loadedGroups.groups);
     setGroupTasks(loadedGroups.groupTasks);
     setNotifications(loadedNotifications);
+    setActiveSchedule(loadedSchedule);
   };
 
   React.useEffect(() => {
@@ -92,6 +97,78 @@ function App() {
     return () => { alive = false; };
   }, [isAuthed]);
 
+  React.useEffect(() => {
+    if (!isAuthed) return undefined;
+
+    const upsertById = (mapper) => (arr, item) => {
+      const mapped = mapper(item);
+      const withoutExisting = arr.filter(existing => existing.id !== mapped.id);
+      return [mapped, ...withoutExisting];
+    };
+
+    const socket = PlanifyAPI.connectSocket({
+      'notification:created': (payload) => {
+        setNotifications(arr => upsertById(PlanifyAPI.toUiNotification)(arr, payload));
+      },
+      'notification:updated': (payload) => {
+        const mapped = PlanifyAPI.toUiNotification(payload);
+        setNotifications(arr => arr.map(n => n.id === mapped.id ? mapped : n));
+      },
+      'notification:deleted': ({ id }) => {
+        setNotifications(arr => arr.filter(n => n.id !== id));
+      },
+      'task:created': (payload) => {
+        setTasks(arr => upsertById(PlanifyAPI.toUiTask)(arr, payload));
+      },
+      'task:updated': (payload) => {
+        const mapped = PlanifyAPI.toUiTask(payload);
+        setTasks(arr => arr.map(t => t.id === mapped.id ? mapped : t));
+      },
+      'task:deleted': ({ id }) => {
+        setTasks(arr => arr.filter(t => t.id !== id));
+      },
+      'group-task:created': (payload) => {
+        const mapped = PlanifyAPI.toUiTask(payload);
+        setGroupTasks(gt => ({
+          ...gt,
+          [payload.groupId]: (gt[payload.groupId] || []).some(t => t.id === mapped.id)
+            ? (gt[payload.groupId] || []).map(t => t.id === mapped.id ? mapped : t)
+            : [mapped, ...(gt[payload.groupId] || [])],
+        }));
+      },
+      'group-task:updated': (payload) => {
+        const mapped = PlanifyAPI.toUiTask(payload);
+        setGroupTasks(gt => ({
+          ...gt,
+          [payload.groupId]: (gt[payload.groupId] || []).map(t => t.id === mapped.id ? mapped : t),
+        }));
+      },
+      'group-task:deleted': ({ groupId, id }) => {
+        setGroupTasks(gt => ({ ...gt, [groupId]: (gt[groupId] || []).filter(t => t.id !== id) }));
+      },
+      'group:member-added': () => refreshAppData(),
+      'group:member-updated': () => refreshAppData(),
+      'group:member-removed': () => refreshAppData(),
+      'group:created': () => refreshAppData(),
+      'group:updated': () => refreshAppData(),
+      'group:deleted': () => refreshAppData(),
+      'schedule:created': (payload) => setActiveSchedule(PlanifyAPI.toUiSchedule(payload)),
+      'schedule:updated': (payload) => setActiveSchedule(PlanifyAPI.toUiSchedule(payload)),
+      'schedule:deleted': ({ id }) => setActiveSchedule(s => s?.id === id ? null : s),
+      'group-chat:message': (payload) => {
+        const mapped = PlanifyAPI.toUiMessage(payload);
+        setGroupMessages(prev => {
+          const list = prev[mapped.groupId] || [];
+          if (list.some(m => m.id === mapped.id)) return prev;
+          return { ...prev, [mapped.groupId]: [...list, mapped] };
+        });
+      },
+      'error:message': (payload) => notify(payload.message || 'Realtime connection error'),
+    });
+
+    return () => socket?.disconnect();
+  }, [isAuthed]);
+
   const signOut = async () => {
     await PlanifyAPI.logout();
     setIsAuthed(false);
@@ -100,6 +177,8 @@ function App() {
     setGroups([]);
     setGroupTasks({});
     setNotifications([]);
+    setGroupMessages({});
+    setActiveSchedule(null);
     setOpenGroupId(null);
     setPage('home');
     setAuthView('landing');
@@ -112,6 +191,7 @@ function App() {
     return () => window.removeEventListener('planify:open-profile', fn);
   }, []);
   const notifCount = notifications.filter(n => n.unread).length;
+  const upsertItem = (arr, item) => [item, ...arr.filter(existing => existing.id !== item.id)];
 
   const toggleTask = async (id) => {
     const task = tasks.find(t => t.id === id);
@@ -170,15 +250,50 @@ function App() {
       notify(e.message || 'Could not delete task');
     }
   };
+  const loadGroupMessages = async (gid) => {
+    try {
+      const messages = await PlanifyAPI.listGroupMessages(gid);
+      setGroupMessages(prev => ({ ...prev, [gid]: messages }));
+    } catch (e) {
+      notify(e.message || 'Could not load chat');
+    }
+  };
+  const sendGroupMessage = async (gid, text) => {
+    const socket = window.PlanifySocket;
+    if (!socket?.connected) {
+      notify('Realtime connection is still starting');
+      return;
+    }
+    socket.emit('group:message:send', { groupId: gid, message: text }, (ack) => {
+      if (!ack?.ok) notify(ack?.message || 'Could not send message');
+    });
+  };
+  const saveTaskDeadlineTime = async (task, time) => {
+    if (!time || !activeSchedule) return;
+    try {
+      const latest = await PlanifyAPI.getActiveSchedule();
+      const entries = latest.planData.entries.map(entry => (
+        entry.sourceType === 'task-deadline' && entry.sourceId === task.id
+          ? { ...entry, time, manualTime: true }
+          : entry
+      ));
+      const saved = await PlanifyAPI.updateSchedule(latest.id, { ...latest.planData, entries });
+      setActiveSchedule(saved);
+    } catch (e) {
+      notify(e.message || 'Task added, but schedule time could not be customized');
+    }
+  };
   const addTask = async (data) => {
     try {
       const task = await PlanifyAPI.createTask({
         title: data.title,
+        description: data.description,
         subject: data.subject || 'General',
         due: data.due,
         priority: data.priority,
       });
-      setTasks(arr => [task, ...arr]);
+      setTasks(arr => upsertItem(arr, task));
+      await saveTaskDeadlineTime(task, data.scheduleTime);
       notify('Task added');
     } catch (e) {
       notify(e.message || 'Could not add task');
@@ -196,7 +311,7 @@ function App() {
         priority: data.priority,
         assignees: data.assignees,
       }, lookup);
-      setGroupTasks(gt => ({ ...gt, [gid]: [task, ...(gt[gid] || [])] }));
+      setGroupTasks(gt => ({ ...gt, [gid]: upsertItem(gt[gid] || [], task) }));
       notify('Task added to group');
     } catch (e) {
       notify(e.message || 'Could not add group task');
@@ -214,6 +329,25 @@ function App() {
       notify('Group created');
     } catch (e) {
       notify(e.message || 'Could not create group');
+    }
+  };
+  const deleteGroup = async (groupId) => {
+    const previousGroups = groups;
+    const previousTasks = groupTasks;
+    setOpenGroupId(null);
+    setGroups(arr => arr.filter(g => g.id !== groupId));
+    setGroupTasks(gt => {
+      const next = { ...gt };
+      delete next[groupId];
+      return next;
+    });
+    try {
+      await PlanifyAPI.deleteGroup(groupId);
+      notify('Group deleted');
+    } catch (e) {
+      setGroups(previousGroups);
+      setGroupTasks(previousTasks);
+      notify(e.message || 'Could not delete group');
     }
   };
   const addGroupMember = async (groupId, email) => {
@@ -362,6 +496,15 @@ function App() {
 
   const currentGroup = openGroupId ? groupsView.find(g => g.id === openGroupId) : null;
 
+  React.useEffect(() => {
+    if (!openGroupId || !window.PlanifySocket) return undefined;
+    window.PlanifySocket.emit('group:join', { groupId: openGroupId }, (ack) => {
+      if (!ack?.ok) notify(ack?.message || 'Could not join group chat');
+    });
+    loadGroupMessages(openGroupId);
+    return () => window.PlanifySocket?.emit('group:leave', { groupId: openGroupId });
+  }, [openGroupId]);
+
   let content = null;
   if (currentGroup) {
     content = (
@@ -369,13 +512,16 @@ function App() {
         user={currentUser}
         group={currentGroup}
         tasks={groupTasks[currentGroup.id] || []}
+        messages={groupMessages[currentGroup.id] || []}
         onBack={() => setOpenGroupId(null)}
         onToggle={(id) => toggleGroupTask(currentGroup.id, id)}
         onDelete={(id) => deleteGroupTask(currentGroup.id, id)}
+        onDeleteGroup={() => deleteGroup(currentGroup.id)}
         onAddTask={() => setShowAddTask(true)}
         onEditTask={(task) => setEditingTask(task)}
         onAddMember={(email) => addGroupMember(currentGroup.id, email)}
         onRemoveMember={(memberId) => removeGroupMember(currentGroup.id, memberId)}
+        onSendMessage={(text) => sendGroupMessage(currentGroup.id, text)}
       />
     );
   } else if (page === 'home') {
@@ -385,7 +531,16 @@ function App() {
   } else if (page === 'groups') {
     content = <GroupsPage groups={groupsView} onOpen={setOpenGroupId} onCreate={() => setShowCreateGroup(true)} />;
   } else if (page === 'schedule') {
-    content = <SchedulePage onAdd={() => setShowAddTask(true)} />;
+    content = (
+      <SchedulePage
+        schedule={activeSchedule}
+        onSaveSchedule={(planData) => activeSchedule && PlanifyAPI.updateSchedule(activeSchedule.id, planData).then(setActiveSchedule)}
+        onCreateTaskAt={(slot) => {
+          setInitialTaskDraft({ due: slot.date, scheduleTime: slot.time, title: '', priority: 'medium' });
+          setShowAddTask(true);
+        }}
+      />
+    );
   } else if (page === 'ai-schedule') {
     content = <AISchedulePage onAdd={() => setShowAddTask(true)} />;
   } else if (page === 'progress') {
@@ -505,9 +660,10 @@ function App() {
           context={currentGroup ? { group: currentGroup.title, subject: currentGroup.subject, members: currentGroup.memberList, createdBy: currentGroup.createdBy } : null}
           subjects={subjects}
           editTask={editingTask}
+          initialTask={initialTaskDraft}
           isAdmin={currentGroup ? currentGroup.createdBy === currentUser?.id : true}
           onAddSubject={addSubject}
-          onClose={() => { setShowAddTask(false); setEditingTask(null); }}
+          onClose={() => { setShowAddTask(false); setEditingTask(null); setInitialTaskDraft(null); }}
           onAdd={(data) => currentGroup ? addGroupTask(currentGroup.id, data) : addTask(data)}
           onEdit={(data) => {
             const gid = currentGroup.id;

@@ -7,6 +7,7 @@ import taskRoutes from "./routes/taskRoute.js";
 import notificationRoutes from "./routes/notificationRoute.js";
 import scheduleRoutes from "./routes/scheduleRoute.js";
 import { startDeadlineReminderJob } from "./utils/deadlineReminderJob.js";
+import { initRealtime } from "./utils/realtime.js";
 
 config();
 await connectDB();
@@ -34,6 +35,7 @@ const PORT = 5001;
 const server = app.listen(PORT, () => {
   console.log(`server is running on http://localhost:${PORT}`);
 });
+initRealtime(server);
 
 const deadlineReminderJob = startDeadlineReminderJob();
 

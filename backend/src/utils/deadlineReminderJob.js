@@ -44,12 +44,13 @@ export const sendDeadlineReminders = async () => {
 
       if (existing) return null;
 
-      return createNotification({
+      const notification = await createNotification({
         userId: task.userId,
         taskId: task.id,
         type: "task",
         message,
       });
+      return notification;
     }),
   );
 };

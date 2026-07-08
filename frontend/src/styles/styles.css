@@ -1780,6 +1780,131 @@ main,
   }
 }
 
+.group-chat {
+  overflow: hidden;
+}
+
+.chat-list {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.chat-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 18px 0;
+}
+
+.chat-message {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.chat-message.mine {
+  justify-content: flex-end;
+}
+
+.chat-message .bubble {
+  max-width: min(78%, 360px);
+  background: var(--bg-sub);
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.chat-message.mine .bubble {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+.chat-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chat-message.mine .chat-meta {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.chat-text {
+  overflow-wrap: anywhere;
+}
+
+.chat-compose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 14px 20px 20px;
+}
+
+.time-input {
+  width: 92px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.deadline-chip {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 3px 7px;
+  background: var(--accent);
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.event.done {
+  opacity: 0.62;
+}
+
+.schedule-row-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -10px 0 20px;
+}
+
+.schedule-row-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  background: var(--bg-sub);
+  padding: 4px;
+}
+
+.schedule-row-control .time-input {
+  width: 86px;
+  border: 0;
+  background: transparent;
+  padding: 6px 4px;
+}
+
 /* ---- Icon-only bottom nav on small phones ---- */
 @media (max-width: 480px) {
   .sb-nav {

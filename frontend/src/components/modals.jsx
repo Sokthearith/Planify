@@ -62,13 +62,13 @@ function SubjectSelect({ value, onChange, subjects, onAddSubject }) {
   );
 }
 
-function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd, editTask, onEdit, isAdmin = true }) {
-  const [title, setTitle] = React.useState(editTask?.title || '');
-  const [desc, setDesc] = React.useState(editTask?.desc || '');
-  const [due, setDue] = React.useState(editTask?.rawDeadline?.split('T')[0] || '');
-  const [subject, setSubject] = React.useState(editTask?.subject || context?.subject || '');
-  const [priority, setPriority] = React.useState(editTask?.priority === 'urgent' ? 'high' : (editTask?.priority || 'medium'));
-  const [assignees, setAssignees] = React.useState(editTask?.assigneeIds || editTask?.assignees || []);
+function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd, editTask, initialTask, onEdit, isAdmin = true }) {
+  const [title, setTitle] = React.useState(editTask?.title || initialTask?.title || '');
+  const [desc, setDesc] = React.useState(editTask?.desc || initialTask?.description || '');
+  const [due, setDue] = React.useState(editTask?.rawDeadline?.split('T')[0] || initialTask?.due || '');
+  const [subject, setSubject] = React.useState(editTask?.subject || initialTask?.subject || context?.subject || '');
+  const [priority, setPriority] = React.useState(editTask?.priority === 'urgent' ? 'high' : (editTask?.priority || initialTask?.priority || 'medium'));
+  const [assignees, setAssignees] = React.useState(editTask?.assigneeIds || editTask?.assignees || initialTask?.assignees || []);
   const members = context?.members || [];
   const isGroupTask = !!context?.group;
   const valid = title.trim();
@@ -81,7 +81,7 @@ function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd, editTas
     if (isEditing) {
       onEdit({ title, description: desc, due, subject, priority, assignees });
     } else {
-      onAdd({ title, description: desc, due, subject, priority, assignees });
+      onAdd({ title, description: desc, due, subject, priority, assignees, scheduleTime: initialTask?.scheduleTime });
     }
     onClose();
   };

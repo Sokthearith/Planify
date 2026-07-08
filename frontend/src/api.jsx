@@ -1,7 +1,10 @@
 /* Backend API adapter */
 
+import { io } from 'socket.io-client';
+
 const PlanifyAPI = (() => {
   const API_BASE = localStorage.getItem('planify:apiBase') || 'http://localhost:5001/api';
+  const SOCKET_BASE = API_BASE.replace(/\/api\/?$/, '');
   const TOKEN_KEY = 'planify:authToken';
   const USER_KEY = 'planify:authUser';
 
@@ -83,17 +86,20 @@ const PlanifyAPI = (() => {
   const toApiPriority = (priority) => priority === 'urgent' ? 'high' : (priority || 'medium');
 
   const toUiTask = (task, memberLookup = {}) => {
-    const due = formatDue(task.dueDate);
+    const rawDeadline = task.deadline || task.dueDate || '';
+    const done = task.done !== undefined ? task.done : task.status === 'done';
+    const due = formatDue(rawDeadline);
     return {
       id: task.id,
       title: task.title,
       desc: task.description || '',
       subject: task.subject || 'General',
       priority: toUiPriority(task.priority),
-      done: task.done,
+      done,
       assignees: (task.assignees || []).map(id => memberLookup[id] || String(id).toUpperCase().slice(0, 2)),
       assigneeIds: task.assignees || [],
-      rawDeadline: task.dueDate || '',
+      rawDeadline,
+      status: task.status || (done ? 'done' : 'pending'),
       ...due,
     };
   };
@@ -101,9 +107,11 @@ const PlanifyAPI = (() => {
   const taskPayload = (task) => ({
     title: task.title,
     description: task.desc || task.description || '',
+    deadline: task.rawDeadline || (task.due && /^\d{4}-\d{2}-\d{2}/.test(task.due) ? task.due : null),
     dueDate: task.rawDeadline || (task.due && /^\d{4}-\d{2}-\d{2}/.test(task.due) ? task.due : null),
     priority: toApiPriority(task.priority),
     done: task.done || false,
+    status: task.done ? 'done' : (task.status || 'pending'),
     assignees: task.assigneeIds || task.assignees || [],
   });
 
@@ -146,6 +154,26 @@ const PlanifyAPI = (() => {
     groupId: notification.groupId,
   });
 
+  const toUiMessage = (message) => ({
+    id: message.id,
+    groupId: message.groupId,
+    senderId: message.senderId,
+    text: message.message,
+    sentAt: message.sentAt,
+    senderName: message.sender?.name || message.sender?.email || 'Member',
+    senderInitials: initials(message.sender?.name || message.sender?.email, 'U'),
+  });
+
+  const toUiSchedule = (schedule) => ({
+    ...schedule,
+    planData: {
+      timezone: schedule.planData?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      entries: Array.isArray(schedule.planData?.entries)
+        ? schedule.planData.entries
+        : (Array.isArray(schedule.planData) ? schedule.planData : []),
+    },
+  });
+
   const saveAuth = (payload) => {
     localStorage.setItem(TOKEN_KEY, payload.token);
     localStorage.setItem(USER_KEY, JSON.stringify(payload.data));
@@ -185,6 +213,11 @@ const PlanifyAPI = (() => {
   return {
     request,
     initials,
+    toUiTask,
+    toUiGroup,
+    toUiNotification,
+    toUiMessage,
+    toUiSchedule,
     getStoredAuth,
     clearAuth,
     login: async (email, password) => saveAuth(await request('/auth/login', {
@@ -231,6 +264,9 @@ const PlanifyAPI = (() => {
       method: 'POST',
       body: { name: group.name, subject: group.subject },
     }), user),
+    deleteGroup: async (groupId) => request('/groups/' + groupId, {
+      method: 'DELETE',
+    }),
     addGroupMember: async (groupId, email) => request('/groups/' + groupId + '/members', {
       method: 'POST',
       body: { email },
@@ -249,6 +285,7 @@ const PlanifyAPI = (() => {
     deleteGroupTask: async (groupId, taskId) => request('/groups/' + groupId + '/tasks/' + taskId, {
       method: 'DELETE',
     }),
+    listGroupMessages: async (groupId) => (await request('/groups/' + groupId + '/messages')).map(toUiMessage),
     listNotifications: async () => (await request('/notifications')).map(toUiNotification),
     markNotificationRead: async (id) => toUiNotification(await request('/notifications/' + id + '/read', {
       method: 'PATCH',
@@ -257,6 +294,27 @@ const PlanifyAPI = (() => {
     deleteNotification: async (id) => request('/notifications/' + id, { method: 'DELETE' }),
     acceptInvite: async (notificationId) => request('/notifications/' + notificationId + '/accept', { method: 'PATCH' }),
     declineInvite: async (notificationId) => request('/notifications/' + notificationId + '/decline', { method: 'PATCH' }),
+    getActiveSchedule: async () => toUiSchedule(await request('/schedules/active?timezone=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone))),
+    updateSchedule: async (id, planData) => toUiSchedule(await request('/schedules/' + id, {
+      method: 'PUT',
+      body: {
+        planData,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+    })),
+    connectSocket: (handlers = {}) => {
+      const token = getToken();
+      if (!token) return null;
+      const socket = io(SOCKET_BASE, {
+        auth: { token },
+        transports: ['websocket', 'polling'],
+      });
+      Object.entries(handlers).forEach(([event, handler]) => {
+        socket.on(event, handler);
+      });
+      window.PlanifySocket = socket;
+      return socket;
+    },
   };
 })();
 

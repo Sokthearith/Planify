@@ -63,10 +63,13 @@ function GroupsPage({ groups, onOpen, onCreate }) {
   );
 }
 
-function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAddTask, onAddMember, onEditTask, onRemoveMember }) {
+function GroupDetailPage({ user, group, tasks, messages = [], onBack, onToggle, onDelete, onDeleteGroup, onAddTask, onAddMember, onEditTask, onRemoveMember, onSendMessage }) {
   const [inviteEmail, setInviteEmail] = React.useState('');
+  const [chatText, setChatText] = React.useState('');
+  const [chatCollapsed, setChatCollapsed] = React.useState(false);
   const [showInvite, setShowInvite] = React.useState(false);
   const [inviting, setInviting] = React.useState(false);
+  const chatEndRef = React.useRef(null);
   const teamMembers = group.memberList || [];
   const isAdmin = user?.id && group.createdBy === user.id;
 
@@ -97,6 +100,15 @@ function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAdd
       setInviting(false);
     }
   };
+  const sendChat = () => {
+    const text = chatText.trim();
+    if (!text) return;
+    onSendMessage?.(text);
+    setChatText('');
+  };
+  React.useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages.length]);
   return (
     <div className="page">
       <div className="page-eyebrow">
@@ -110,6 +122,7 @@ function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAdd
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn ghost" onClick={() => setShowInvite(o => !o)}><IconAddUser size={14} /> Invite</button>
+          {isAdmin ? <button className="btn ghost danger" onClick={onDeleteGroup}>Delete group</button> : null}
           <button className="btn" onClick={onAddTask}><IconPlus size={14} /> Add task</button>
         </div>
       </div>
@@ -215,6 +228,58 @@ function GroupDetailPage({ user, group, tasks, onBack, onToggle, onDelete, onAdd
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="panel group-chat">
+            <div className="panel-head" style={{ padding: '18px 20px' }}>
+              <h3 className="t-h3">Chat</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="t-mut">{messages.length} messages</span>
+                <button className="btn ghost sm" onClick={() => setChatCollapsed(v => !v)}>
+                  {chatCollapsed ? 'Open' : 'Minimize'}
+                </button>
+              </div>
+            </div>
+            {!chatCollapsed ? (
+              <>
+                <div className="chat-list">
+                  {messages.length === 0 ? (
+                    <div className="chat-empty">No messages yet</div>
+                  ) : messages.map(m => {
+                    const mine = m.senderId === user?.id;
+                    const sent = m.sentAt ? new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                    return (
+                      <div key={m.id} className={'chat-message' + (mine ? ' mine' : '')}>
+                        {!mine ? <Avatar initials={m.senderInitials} size={26} /> : null}
+                        <div className="bubble">
+                          <div className="chat-meta">
+                            <span>{mine ? 'You' : m.senderName}</span>
+                            <span>{sent}</span>
+                          </div>
+                          <div className="chat-text">{m.text}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={chatEndRef} />
+                </div>
+                <div className="chat-compose">
+                  <input
+                    className="input"
+                    placeholder="Message the group"
+                    value={chatText}
+                    onChange={e => setChatText(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendChat();
+                      }
+                    }}
+                  />
+                  <button className="btn sm" onClick={sendChat} disabled={!chatText.trim()}>Send</button>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div className="panel">

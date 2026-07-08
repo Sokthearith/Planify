@@ -1,4 +1,5 @@
 import { Notifications } from "../models/index.js";
+import { emitToUser } from "./realtime.js";
 
 const createNotification = async ({
   userId,
@@ -11,7 +12,7 @@ const createNotification = async ({
 }) => {
   if (!userId || typeof message !== "string" || !message.trim()) return null;
 
-  return Notifications.create({
+  const notification = await Notifications.create({
     userId,
     taskId,
     groupId,
@@ -20,6 +21,9 @@ const createNotification = async ({
     inviteStatus,
     message: message.trim(),
   });
+
+  emitToUser(userId, "notification:created", notification);
+  return notification;
 };
 
 export default createNotification;

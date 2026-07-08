@@ -42,6 +42,7 @@ import StudyGroupModel from "./StudyGroup.js";
 import GroupMemberModel from "./GroupMember.js";
 import GroupTaskModel from "./GroupTask.js";
 import NotificationModel from "./Notifications.js";
+import GroupMessageModel from "./GroupMessage.js";
 
 const User = UserModel(sequelize, DataTypes);
 const Task = TaskModel(sequelize, DataTypes);
@@ -50,6 +51,7 @@ const StudyGroup = StudyGroupModel(sequelize, DataTypes);
 const GroupMember = GroupMemberModel(sequelize, DataTypes);
 const GroupTask = GroupTaskModel(sequelize, DataTypes);
 const Notifications = NotificationModel(sequelize, DataTypes);
+const GroupMessage = GroupMessageModel(sequelize, DataTypes);
 
 User.hasMany(Task, { foreignKey: "userId", onDelete: "CASCADE" });
 Task.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
@@ -78,6 +80,16 @@ Task.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
 StudyGroup.hasMany(GroupTask, { foreignKey: "groupId", onDelete: "CASCADE" });
 GroupTask.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
 
+StudyGroup.hasMany(GroupMessage, { foreignKey: "groupId", onDelete: "CASCADE" });
+GroupMessage.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
+
+User.hasMany(GroupMessage, { foreignKey: "senderId", onDelete: "CASCADE" });
+GroupMessage.belongsTo(User, {
+  as: "sender",
+  foreignKey: "senderId",
+  onDelete: "CASCADE",
+});
+
 User.hasMany(Notifications, { foreignKey: "userId", onDelete: "CASCADE" });
 Notifications.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 
@@ -94,5 +106,6 @@ export {
   StudyGroup,
   GroupMember,
   GroupTask,
+  GroupMessage,
   Notifications,
 };

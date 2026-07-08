@@ -3,6 +3,7 @@ import {
   createSchedule,
   deleteSchedule,
   getMySchedules,
+  getActiveSchedule,
   getScheduleById,
   updateSchedule,
 } from "../controllers/scheduleController.js";
@@ -12,6 +13,7 @@ const router = Router();
 
 router.use(protect);
 router.route("/").post(createSchedule).get(getMySchedules);
+router.route("/active").get(getActiveSchedule);
 router.route("/:id").get(getScheduleById).put(updateSchedule).delete(deleteSchedule);
 
 export default router;

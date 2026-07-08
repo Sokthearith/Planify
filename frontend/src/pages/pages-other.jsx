@@ -14,25 +14,100 @@ import {
 } from '../components/icons.jsx';
 import { PriorityTag, priorityClass, priorityLabel } from './pages-home-tasks.jsx';
 
-function SchedulePage({ onAdd }) {
+function SchedulePage({ schedule, onSaveSchedule, onCreateTaskAt }) {
   const [view, setView] = React.useState('week');
-  const [activeDay, setActiveDay] = React.useState('Wed');
-  const days = [
-    { d: 'Mon', n: 2 }, { d: 'Tue', n: 3 }, { d: 'Wed', n: 4, today: true }, { d: 'Thu', n: 5 },
-    { d: 'Fri', n: 6 }, { d: 'Sat', n: 7 }, { d: 'Sun', n: 8 },
-  ];
-  const hours = ['9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+  const timezone = schedule?.planData?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const today = React.useMemo(() => new Date(), []);
+  const start = React.useMemo(() => {
+    const d = new Date(today);
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() - day + 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [today]);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + i);
+    const key = date.toLocaleDateString('en-CA', { timeZone: timezone });
+    return {
+      key,
+      d: date.toLocaleDateString(undefined, { weekday: 'short' }),
+      n: date.getDate(),
+      label: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      today: key === new Date().toLocaleDateString('en-CA', { timeZone: timezone }),
+    };
+  });
+  const [activeDay, setActiveDay] = React.useState(days.find(d => d.today)?.key || days[0].key);
+  React.useEffect(() => {
+    if (!days.some(d => d.key === activeDay)) setActiveDay(days.find(d => d.today)?.key || days[0].key);
+  }, [days.map(d => d.key).join('|')]);
+  const planData = schedule?.planData || { timezone, entries: [] };
+  const entries = planData.entries || [];
+  const defaultRows = Array.from({ length: 14 }, (_, i) => String(i + 7).padStart(2, '0') + ':00');
+  const hours = Array.isArray(planData.rows) && planData.rows.length ? planData.rows : defaultRows;
+  const eventsByDay = entries.reduce((acc, event) => {
+    acc[event.date] = acc[event.date] || [];
+    acc[event.date].push(event);
+    return acc;
+  }, {});
+  Object.values(eventsByDay).forEach(list => list.sort((a, b) => (a.time || '').localeCompare(b.time || '')));
+  const eventAt = (dayKey, hour) => (eventsByDay[dayKey] || []).find(e => (e.time || '').slice(0, 2) === hour.slice(0, 2));
+  const countFor = (dayKey) => (eventsByDay[dayKey] || []).length;
+  const activeInfo = days.find(d => d.key === activeDay) || days[0];
+  const weekRange = days[0].label + ' - ' + days[6].label;
 
-  const events = {};
-  const countFor = (d) => hours.filter(h => events[d + '-' + h]).length;
-  const activeInfo = days.find(d => d.d === activeDay);
+  const saveEntries = async (nextEntries) => {
+    if (!schedule) return;
+    try {
+      await onSaveSchedule?.({ ...planData, timezone, entries: nextEntries });
+    } catch (e) {
+      notify(e.message || 'Could not save schedule');
+    }
+  };
+  const updateEvent = (id, patch) => {
+    saveEntries(entries.map(event => event.id === id ? { ...event, ...patch, manualTime: patch.time ? true : event.manualTime } : event));
+  };
+  const deleteManualEvent = (id) => saveEntries(entries.filter(event => event.id !== id));
+  const saveRows = async (rows, nextEntries = entries) => {
+    if (!schedule) return;
+    try {
+      await onSaveSchedule?.({ ...planData, timezone, rows, entries: nextEntries });
+    } catch (e) {
+      notify(e.message || 'Could not save schedule rows');
+    }
+  };
+  const addRow = () => {
+    const used = new Set(hours);
+    let next = '18:00';
+    for (let hour = 7; hour <= 23; hour += 1) {
+      const candidate = String(hour).padStart(2, '0') + ':00';
+      if (!used.has(candidate)) {
+        next = candidate;
+        break;
+      }
+    }
+    saveRows([...hours, next].sort());
+  };
+  const updateRowTime = (oldTime, nextTime) => {
+    if (!nextTime || hours.includes(nextTime)) return;
+    const rows = hours.map(time => time === oldTime ? nextTime : time).sort();
+    const nextEntries = entries.map(entry => entry.time === oldTime ? { ...entry, time: nextTime, manualTime: true } : entry);
+    saveRows(rows, nextEntries);
+  };
+  const removeRow = (time) => {
+    if (entries.some(entry => entry.time === time)) {
+      notify('Move or remove items in this row first');
+      return;
+    }
+    saveRows(hours.filter(row => row !== time));
+  };
 
   return (
     <div className="page">
       <div className="page-head row">
         <div>
-          <div className="page-eyebrow">June 5 — June 11</div>
-          <h1 className="t-h1" style={{ marginTop: 8 }}>Schedule <span style={{ color: 'var(--muted-2)', fontWeight: 500 }}>/ Week 23</span></h1>
+          <div className="page-eyebrow">{weekRange} / {timezone}</div>
+          <h1 className="t-h1" style={{ marginTop: 8 }}>Schedule <span style={{ color: 'var(--muted-2)', fontWeight: 500 }}>/ Live</span></h1>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <div className="seg">
@@ -40,8 +115,25 @@ function SchedulePage({ onAdd }) {
               <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{v.toUpperCase()}</button>
             ))}
           </div>
-          <button className="btn" onClick={onAdd}><IconPlus size={14} /> New event</button>
+          <button className="btn" onClick={addRow} disabled={!schedule}><IconPlus size={14} /> Add row</button>
         </div>
+      </div>
+
+      <div className="schedule-row-controls">
+        {hours.map(time => (
+          <div key={time} className="schedule-row-control">
+            <input
+              className="time-input"
+              type="time"
+              value={time}
+              onChange={e => updateRowTime(time, e.target.value)}
+              aria-label={'Change schedule row ' + time}
+            />
+            <button className="x" onClick={() => removeRow(time)} aria-label={'Remove row ' + time} title="Remove row">
+              <IconClose size={12} />
+            </button>
+          </div>
+        ))}
       </div>
 
       {view === 'week' ? (
@@ -52,7 +144,7 @@ function SchedulePage({ onAdd }) {
             <div
               key={d.d}
               className={'hd day clickable' + (d.today ? ' today' : '')}
-              onClick={() => { setActiveDay(d.d); setView('day'); }}
+              onClick={() => { setActiveDay(d.key); setView('day'); }}
               title={'Open ' + d.d}
             >
               <span>{d.d}</span>
@@ -63,16 +155,16 @@ function SchedulePage({ onAdd }) {
             <React.Fragment key={h}>
               <div className="hour">{h}</div>
               {days.map(d => {
-                const ev = events[d.d + '-' + h];
+                const ev = eventAt(d.key, h);
                 return (
                   <div
                     key={d.d + h}
                     className={'cell' + (ev ? '' : ' empty')}
-                    onClick={ev ? undefined : onAdd}
-                    title={ev ? ev.title : 'Add event at ' + d.d + ' ' + h}
+                    onClick={ev ? undefined : () => onCreateTaskAt?.({ date: d.key, time: h })}
+                    title={ev ? ev.title : 'Create task due ' + d.d + ' ' + h}
                   >
                     {ev ? (
-                      <div className={'event' + (ev.urgent ? ' urgent' : '')}>
+                      <div className={'event' + (ev.urgent || ev.kind === 'deadline' ? ' urgent' : '') + (ev.done ? ' done' : '')}>
                         <div>{ev.title}</div>
                         <div className="subj">{ev.subj}</div>
                       </div>
@@ -92,31 +184,49 @@ function SchedulePage({ onAdd }) {
         <div>
           <div className="day-pills" style={{ marginBottom: 20 }}>
             {days.map(d => (
-              <button key={d.d} className={'day-pill' + (activeDay === d.d ? ' on' : '')} onClick={() => setActiveDay(d.d)}>
+              <button key={d.d} className={'day-pill' + (activeDay === d.key ? ' on' : '')} onClick={() => setActiveDay(d.key)}>
                 <span className="d">{d.d} {d.today ? '· today' : ''}</span>
                 <span className="n">{String(d.n).padStart(2, '0')}</span>
-                <span className="meta">{countFor(d.d)} events</span>
+                <span className="meta">{countFor(d.key)} events</span>
               </button>
             ))}
           </div>
           <div className="panel">
             <div className="panel-head">
-              <h2 className="t-h2">{activeDay}, June {activeInfo ? activeInfo.n : ''}</h2>
+              <h2 className="t-h2">{activeInfo.d}, {activeInfo.label}</h2>
               <span className="t-mut">{countFor(activeDay)} scheduled</span>
             </div>
             <div>
               {hours.map(h => {
-                const ev = events[activeDay + '-' + h];
+                const ev = eventAt(activeDay, h);
                 return (
-                  <div key={h} className="day-slot" onClick={ev ? undefined : onAdd} title={ev ? ev.title : 'Add event at ' + h}>
-                    <span className="time">{h}</span>
+                  <div
+                    key={h}
+                    className="day-slot"
+                    onClick={ev ? undefined : () => onCreateTaskAt?.({ date: activeDay, time: h })}
+                    title={ev ? ev.title : 'Create task due at ' + h}
+                  >
+                    <input
+                      className="time-input"
+                      type="time"
+                      value={h}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => updateRowTime(h, e.target.value)}
+                      aria-label={'Change schedule row ' + h}
+                    />
                     {ev ? (
-                      <div className={'event' + (ev.urgent ? ' urgent' : '')} style={{ flex: 1 }}>
+                      <>
+                        <div className={'event' + (ev.urgent || ev.kind === 'deadline' ? ' urgent' : '') + (ev.done ? ' done' : '')} style={{ flex: 1 }}>
                         <div>{ev.title}</div>
-                        <div className="subj">{ev.subj}</div>
-                      </div>
+                        <div className="subj">{ev.subj}{ev.status ? ' / ' + ev.status.replace('_', ' ') : ''}</div>
+                        {ev.kind === 'deadline' ? <div className="deadline-chip">{ev.done ? 'DONE' : 'TASK DEADLINE'}</div> : null}
+                        </div>
+                        {ev.sourceType === 'manual' ? (
+                          <button className="x" onClick={(e) => { e.stopPropagation(); deleteManualEvent(ev.id); }} aria-label="Delete event" title="Delete event"><IconClose size={12} /></button>
+                        ) : null}
+                      </>
                     ) : (
-                      <span className="free">Free <IconPlus size={11} /></span>
+                      <span className="free">Create task <IconPlus size={11} /></span>
                     )}
                   </div>
                 );
@@ -138,13 +248,13 @@ function SchedulePage({ onAdd }) {
             const dayNum = n >= 1 && n <= 30 ? n : null;
             const wd = days[i % 7];
             const inWeek = dayNum !== null && dayNum >= 2 && dayNum <= 8;
-            const count = inWeek ? countFor(wd.d) : 0;
-            const today = dayNum === 4;
+            const count = inWeek ? countFor(wd.key) : 0;
+            const today = inWeek && wd.today;
             return (
               <div
                 key={i}
                 className={'mcell' + (dayNum ? ' clickable' : '') + (today ? ' today' : '')}
-                onClick={dayNum ? () => { if (inWeek) { setActiveDay(wd.d); setView('day'); } else { onAdd(); } } : undefined}
+                onClick={dayNum ? () => { if (inWeek) { setActiveDay(wd.key); setView('day'); } } : undefined}
                 title={dayNum ? (inWeek ? 'Open June ' + dayNum : 'Add event') : undefined}
               >
                 {dayNum ? <span className="num">{String(dayNum).padStart(2, '0')}</span> : null}
