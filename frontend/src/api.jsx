@@ -302,6 +302,7 @@ const PlanifyAPI = (() => {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
     })),
+    autoGenerateSchedule: async () => toUiSchedule(await request('/schedules/auto-generate', { method: 'POST' })),
     connectSocket: (handlers = {}) => {
       const token = getToken();
       if (!token) return null;

@@ -988,6 +988,20 @@
   color: rgba(255,255,255,.65);
 }
 
+.week-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.week-nav .week-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .ai-day {
   border: 1px solid var(--line);
 }

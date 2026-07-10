@@ -8,6 +8,7 @@ import notificationRoutes from "./routes/notificationRoute.js";
 import scheduleRoutes from "./routes/scheduleRoute.js";
 import { startDeadlineReminderJob } from "./utils/deadlineReminderJob.js";
 import { initRealtime } from "./utils/realtime.js";
+import chatbotRoutes from "./routes/chatbotRoute.js";
 
 config();
 await connectDB();
@@ -19,7 +20,10 @@ app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", origin);
   res.header("Vary", "Origin");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+  );
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
@@ -29,6 +33,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/schedules", scheduleRoutes);
+app.use("/api/chat", chatbotRoutes);
 
 const PORT = 5001;
 

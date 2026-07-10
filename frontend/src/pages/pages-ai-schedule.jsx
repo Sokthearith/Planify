@@ -1,62 +1,121 @@
-/* AI Schedule — the "guiding" page */
-
 import React from 'react';
+import PlanifyAPI from '../api.jsx';
 import { notify } from '../data.jsx';
 import { IconPlus, IconSpark } from '../components/icons.jsx';
 
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function mondayOfWeek(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d;
+}
+
+function formatDateKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function isToday(dateKey) {
+  return dateKey === formatDateKey(new Date());
+}
+
+function weekDays(monday) {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return {
+      key: formatDateKey(d),
+      label: DAY_LABELS[i],
+      date: d.getDate(),
+      today: isToday(formatDateKey(d)),
+    };
+  });
+}
+
+function entriesInWeek(entries, monday) {
+  const start = formatDateKey(monday);
+  const nextMon = new Date(monday);
+  nextMon.setDate(monday.getDate() + 7);
+  const end = formatDateKey(nextMon);
+  return entries.filter(e => e.date >= start && e.date < end);
+}
+
 function AISchedulePage({ onAdd }) {
-  const days = [
-    { d: 'Mon', n: 3, count: 4 },
-    { d: 'Tue', n: 4, count: 5 },
-    { d: 'Wed', n: 5, today: true, count: 6 },
-    { d: 'Thu', n: 6, count: 3 },
-    { d: 'Fri', n: 7, count: 4 },
-    { d: 'Sat', n: 8, count: 2 },
-    { d: 'Sun', n: 9, count: 1 },
-  ];
-  const [active, setActive] = React.useState(2); // Wed
-  const [regenSpin, setRegenSpin] = React.useState(false);
-  const [seed, setSeed] = React.useState(0);
+  const [entries, setEntries] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [generating, setGenerating] = React.useState(false);
+  const [weekStart, setWeekStart] = React.useState(() => mondayOfWeek(new Date()));
+  const [activeDay, setActiveDay] = React.useState(null);
   const [doneBlocks, setDoneBlocks] = React.useState({});
 
-  const allBlocks = [
-    { time: '09:00', title: 'Calculus · Problem Set 5', subj: 'Mathematics', tag: 'Deep focus', urgent: true, kind: 'busy' },
-    { time: '10:30', title: 'Short break', subj: 'Recharge', kind: 'break' },
-    { time: '11:00', title: 'Read Chapters 7–9', subj: 'Physics', tag: 'Reading', kind: 'busy' },
-    { time: '12:30', title: 'Lunch', subj: 'Recovery', kind: 'break' },
-    { time: '13:30', title: 'Programming Assignment 3', subj: 'Computer Science', tag: 'Coding', urgent: true, kind: 'busy' },
-    { time: '15:00', title: 'Office hours', subj: 'Computer Science', tag: 'Drop-in', kind: 'busy' },
-    { time: '16:00', title: 'Walk · light cardio', subj: 'Energy', kind: 'break' },
-    { time: '17:00', title: 'Essay Draft', subj: 'English Literature', tag: 'Writing', kind: 'busy' },
-    { time: '19:00', title: 'Reflection · close the day', subj: 'Planning', kind: 'busy' },
-  ];
+  React.useEffect(() => {
+    PlanifyAPI.getActiveSchedule()
+      .then(s => setEntries(s.planData?.entries || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  // Vary the day plan per selected day + regeneration seed: rotate the work
-  // blocks while keeping the time slots fixed.
-  const times = allBlocks.map(b => b.time);
-  const shift = (active + seed) % allBlocks.length;
-  const rotated = allBlocks.slice(shift).concat(allBlocks.slice(0, shift));
-  const blocks = rotated.map((b, i) => ({ ...b, time: times[i] }));
-  const blockKey = (b) => active + '-' + seed + '-' + b.title;
-  const toggleBlock = (b) => setDoneBlocks(d => ({ ...d, [blockKey(b)]: !d[blockKey(b)] }));
-  const doneCount = blocks.filter(b => doneBlocks[blockKey(b)]).length;
+  React.useEffect(() => {
+    const today = formatDateKey(new Date());
+    const days = weekDays(weekStart);
+    const found = days.find(d => d.today);
+    if (found && !days.some(d => d.key === activeDay)) {
+      setActiveDay(found.key);
+    } else if (!activeDay) {
+      setActiveDay(days[0].key);
+    }
+  }, [weekStart]);
 
-  const regenerate = () => {
-    setRegenSpin(true);
-    setTimeout(() => {
-      setRegenSpin(false);
-      setSeed(s => s + 1);
-      notify('Schedule regenerated');
-    }, 700);
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const schedule = await PlanifyAPI.autoGenerateSchedule();
+      setEntries(schedule.planData?.entries || []);
+      notify('Schedule generated from your tasks');
+    } catch (e) {
+      notify(e.message || 'Could not generate schedule');
+    } finally {
+      setGenerating(false);
+    }
   };
+
+  const goPrevWeek = () => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() - 7);
+    setWeekStart(d);
+  };
+
+  const goNextWeek = () => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + 7);
+    setWeekStart(d);
+  };
+
+  const days = weekDays(weekStart);
+  const weekEntries = entriesInWeek(entries, weekStart);
+  const dayEntries = weekEntries.filter(e => e.date === activeDay);
+  const doneCount = dayEntries.filter(e => doneBlocks[e.taskName + e.startTime]).length;
+  const toggleDone = (e) => setDoneBlocks(d => ({ ...d, [e.taskName + e.startTime]: !d[e.taskName + e.startTime] }));
+
+  const weekLabel = `${days[0].key.slice(5)}/${days[0].date} – ${days[6].key.slice(5)}/${days[6].date}`;
 
   return (
     <div className="page">
       <div className="page-head row">
         <div>
-          <div className="page-eyebrow">Generated · 18 minutes ago</div>
+          <div className="page-eyebrow">
+            {entries.length ? `Generated · ${entries.length} tasks scheduled` : 'No schedule yet'}
+          </div>
           <h1 className="t-h1" style={{ marginTop: 8 }}>AI Schedule</h1>
-          <div className="t-mut" style={{ marginTop: 8 }}>An optimized study plan based on your goals, deadlines and habits.</div>
+          <div className="t-mut" style={{ marginTop: 8 }}>
+            An optimized study plan based on your tasks, deadlines and priorities.
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn ghost" onClick={onAdd}><IconPlus size={14} /> Manual event</button>
@@ -67,24 +126,39 @@ function AISchedulePage({ onAdd }) {
         <div className="icon-wrap"><IconSpark size={22} /></div>
         <div>
           <h3>AI-Optimized Schedule</h3>
-          <p>Your week has been balanced around two urgent deadlines (Calculus, Programming) and your peak focus hours between 09:00–11:00. We've added two recovery blocks and one office-hours slot.</p>
+          <p>Click "Generate from my tasks" to create a personalized weekly schedule based on your pending tasks, deadlines, and priorities.</p>
         </div>
-        <button className="regen" onClick={regenerate} disabled={regenSpin}>
-          <span style={{ display: 'inline-block', transition: 'transform .6s', transform: regenSpin ? 'rotate(360deg)' : 'none' }}>↻</span>
-          {regenSpin ? 'Regenerating' : 'Regenerate'}
+        <button className="regen" onClick={generate} disabled={generating}>
+          <span style={{ display: 'inline-block', transition: 'transform .6s', transform: generating ? 'rotate(360deg)' : 'none' }}>↻</span>
+          {generating ? 'Generating' : 'Generate from my tasks'}
         </button>
       </div>
 
       <div style={{ height: 32 }} />
 
+      <div className="week-nav">
+        <button className="btn ghost" onClick={goPrevWeek}>← Prev</button>
+        <span className="week-label">{weekLabel}</span>
+        <button className="btn ghost" onClick={goNextWeek}>Next →</button>
+      </div>
+
+      <div style={{ height: 16 }} />
+
       <div className="day-pills">
-        {days.map((d, i) => (
-          <button key={d.d} className={'day-pill' + (active === i ? ' on' : '')} onClick={() => setActive(i)}>
-            <span className="d">{d.d} {d.today ? '· today' : ''}</span>
-            <span className="n">{String(d.n).padStart(2, '0')}</span>
-            <span className="meta">{d.count} blocks</span>
-          </button>
-        ))}
+        {days.map(d => {
+          const count = weekEntries.filter(e => e.date === d.key).length;
+          return (
+            <button
+              key={d.key}
+              className={'day-pill' + (activeDay === d.key ? ' on' : '') + (d.today ? ' today' : '')}
+              onClick={() => setActiveDay(d.key)}
+            >
+              <span className="d">{d.label}</span>
+              <span className="n">{d.date}</span>
+              <span className="meta">{count} blocks</span>
+            </button>
+          );
+        })}
       </div>
 
       <div style={{ height: 24 }} />
@@ -92,25 +166,30 @@ function AISchedulePage({ onAdd }) {
       <div className="ai-grid">
         <div className="ai-day">
           <div className="t-mut" style={{ marginBottom: 12 }}>
-            Click a block to mark it complete · {doneCount}/{blocks.length} done
+            {loading ? 'Loading...' : generating ? 'Generating...' :
+              dayEntries.length ? `Click a block to mark it complete · ${doneCount}/${dayEntries.length} done` :
+              'No tasks scheduled for this day.'}
           </div>
-          {blocks.map((b, i) => {
-            const isDone = !!doneBlocks[blockKey(b)];
+          {dayEntries.map((e, i) => {
+            const isDone = !!doneBlocks[e.taskName + e.startTime];
             return (
               <div key={i} className="ai-row">
-                <div className="time">{b.time}</div>
+                <div className="time">{e.startTime}</div>
                 <div
-                  className={'block ' + b.kind + (b.urgent ? ' urgent' : '') + (isDone ? ' done' : '')}
-                  onClick={() => toggleBlock(b)}
+                  className={'block busy' + (e.priority === 'High' ? ' urgent' : '') + (isDone ? ' done' : '')}
+                  onClick={() => toggleDone(e)}
                   title={isDone ? 'Mark as not done' : 'Mark as done'}
                 >
                   <div className="subj">
-                    <span>{b.subj}</span>
-                    {b.tag ? <><span>·</span><span>{b.tag}</span></> : null}
+                    <span>{e.priority === 'High' ? 'High Priority' : e.priority === 'Medium' ? 'Medium Priority' : 'Low Priority'}</span>
                   </div>
-                  <div className="title">{b.title}</div>
+                  <div className="title">{e.taskName}</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 2 }}>
+                    <span className="t-mut" style={{ fontSize: 12 }}>{e.startTime} – {e.endTime}</span>
+                    {e.dueDate ? <span className="t-mut" style={{ fontSize: 11, color: 'var(--urgent)' }}>due {e.dueDate}</span> : null}
+                  </div>
                   {isDone ? <div className="badge-end" style={{ background: 'var(--ok)' }}>DONE</div> :
-                   b.urgent ? <div className="badge-end">DEADLINE</div> : null}
+                   e.priority === 'High' ? <div className="badge-end">DEADLINE</div> : null}
                 </div>
               </div>
             );
@@ -120,7 +199,7 @@ function AISchedulePage({ onAdd }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="insight">
             <div className="eyebrow"><IconSpark size={11} /> Why this plan</div>
-            <div className="body">Your highest-priority deadlines land Friday. The plan front-loads Calculus and Programming on your peak hours.</div>
+            <div className="body">High-priority tasks are placed in morning peak hours. Tasks with earlier deadlines are scheduled first. Subjects are balanced across the week.</div>
           </div>
 
           <div className="panel">
@@ -128,36 +207,21 @@ function AISchedulePage({ onAdd }) {
               <h3 className="t-h3">Day balance</h3>
             </div>
             <div className="panel-pad" style={{ padding: '14px 20px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[
-                { lbl: 'Deep focus', val: 0.55, h: '3.5h' },
-                { lbl: 'Reading', val: 0.2, h: '1.5h' },
-                { lbl: 'Coding', val: 0.18, h: '1.5h' },
-                { lbl: 'Recovery', val: 0.1, h: '0.5h' },
-              ].map(b => (
-                <div key={b.lbl}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, fontWeight: 600 }}>
-                    <span>{b.lbl}</span>
-                    <span className="tnum" style={{ color: 'var(--muted)' }}>{b.h}</span>
+              {[{ lbl: 'High priority', color: 'var(--urgent)' }, { lbl: 'Medium priority', color: 'var(--accent)' }, { lbl: 'Low priority', color: 'var(--muted)' }].map(b => {
+                const count = entries.filter(e => e.priority === b.lbl.split(' ')[0]).length;
+                const total = entries.length || 1;
+                return (
+                  <div key={b.lbl}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, fontWeight: 600 }}>
+                      <span>{b.lbl}</span>
+                      <span className="tnum" style={{ color: 'var(--muted)' }}>{count} tasks</span>
+                    </div>
+                    <div className="progressbar" style={{ height: 4, background: 'var(--bg-sunken)', marginTop: 8 }}>
+                      <div style={{ width: (count / total * 100) + '%', height: '100%', background: b.color }} />
+                    </div>
                   </div>
-                  <div className="progressbar" style={{ height: 4, background: 'var(--bg-sunken)', marginTop: 8 }}>
-                    <div style={{ width: (b.val * 100) + '%', height: '100%', background: 'var(--ink)' }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-head" style={{ padding: '18px 20px' }}>
-              <h3 className="t-h3">Constraints</h3>
-            </div>
-            <div style={{ padding: '4px 20px 20px' }}>
-              {['Peak hours: 09:00–11:00', 'No work after 21:00', 'Break every 90 min', 'Friday: deadline buffer'].map(c => (
-                <div key={c} style={{ padding: '12px 0', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, fontSize: 13 }}>
-                  <span style={{ width: 6, height: 6, background: 'var(--ink)' }}></span>
-                  {c}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -167,5 +231,4 @@ function AISchedulePage({ onAdd }) {
 }
 
 Object.assign(window, { AISchedulePage });
-
 export { AISchedulePage };

@@ -5,6 +5,10 @@ import {
   normalizeSchedulePayload,
   syncTaskDeadlinesForSchedule,
 } from "../utils/scheduleSync.js";
+import { handleSmartScheduler } from "../services/genai.js";
+import { deterministicSchedule } from "../services/scheduler.js";
+import { Sequelize, Op } from "sequelize";
+import { Task, GroupTask } from "../models/index.js";
 
 const getScheduleForUser = (scheduleId, userId) => {
   return Schedule.findOne({ where: { id: scheduleId, userId } });
@@ -36,13 +40,18 @@ export const createSchedule = async (req, res) => {
   if (error) return res.status(400).json(error);
 
   const schedule = await Schedule.create({
-    planData: normalizeSchedulePayload(scheduleData.planData, scheduleData.timezone),
+    planData: normalizeSchedulePayload(
+      scheduleData.planData,
+      scheduleData.timezone,
+    ),
     isActive: Boolean(scheduleData.isActive),
     userId: req.user.id,
   });
 
   if (schedule.isActive) await setActiveSchedule(schedule, req.user.id);
-  await syncTaskDeadlinesForSchedule(schedule, { timezone: scheduleData.timezone });
+  await syncTaskDeadlinesForSchedule(schedule, {
+    timezone: scheduleData.timezone,
+  });
   emitToUser(req.user.id, "schedule:created", schedule);
 
   res.status(201).json(schedule);
@@ -65,7 +74,9 @@ export const getMySchedules = async (req, res) => {
 
   if (req.query.withDeadlines === "true") {
     for (const schedule of schedules) {
-      await syncTaskDeadlinesForSchedule(schedule, { timezone: req.query.timezone });
+      await syncTaskDeadlinesForSchedule(schedule, {
+        timezone: req.query.timezone,
+      });
     }
   }
 
@@ -76,7 +87,9 @@ export const getScheduleById = async (req, res) => {
   const schedule = await getScheduleForUser(req.params.id, req.user.id);
   if (!schedule) return res.status(404).json({ message: "Schedule Not Found" });
 
-  await syncTaskDeadlinesForSchedule(schedule, { timezone: req.query.timezone });
+  await syncTaskDeadlinesForSchedule(schedule, {
+    timezone: req.query.timezone,
+  });
 
   res.json(schedule);
 };
@@ -91,13 +104,19 @@ export const updateSchedule = async (req, res) => {
 
   const updates = {};
   if (scheduleData.planData !== undefined) {
-    updates.planData = normalizeSchedulePayload(scheduleData.planData, scheduleData.timezone);
+    updates.planData = normalizeSchedulePayload(
+      scheduleData.planData,
+      scheduleData.timezone,
+    );
   }
-  if (scheduleData.isActive !== undefined) updates.isActive = scheduleData.isActive;
+  if (scheduleData.isActive !== undefined)
+    updates.isActive = scheduleData.isActive;
 
   await schedule.update(updates);
   if (scheduleData.isActive) await setActiveSchedule(schedule, req.user.id);
-  await syncTaskDeadlinesForSchedule(schedule, { timezone: scheduleData.timezone });
+  await syncTaskDeadlinesForSchedule(schedule, {
+    timezone: scheduleData.timezone,
+  });
   emitToUser(req.user.id, "schedule:updated", schedule);
 
   res.json(schedule);
@@ -110,4 +129,74 @@ export const deleteSchedule = async (req, res) => {
   await schedule.destroy();
   emitToUser(req.user.id, "schedule:deleted", { id: req.params.id });
   res.json({ message: "Schedule deleted" });
+};
+
+export const generateScheduleFromText = async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ message: "prompt is required" });
+
+  const entries = await handleSmartScheduler(prompt);
+  const schedule = await Schedule.create({
+    planData: { entries },
+    isActive: true,
+    userId: req.user.id,
+  });
+
+  res.status(201).json(schedule);
+};
+export const autoGenerateSchedule = async (req, res) => {
+  const [personalTasks, groupTasks] = await Promise.all([
+    Task.findAll({
+      where: { userId: req.user.id, status: ["pending", "in_progress"] },
+      order: [["deadline", "ASC"]],
+    }),
+    GroupTask.findAll({
+      where: {
+        [Op.or]: [
+          { createBy: req.user.id },
+          Sequelize.where(
+            Sequelize.fn(
+              "JSON_CONTAINS",
+              Sequelize.col("assignees"),
+              Sequelize.literal(`'"${req.user.id}"'`),
+            ),
+            1,
+          ),
+        ],
+        done: false,
+      },
+      order: [["dueDate", "ASC"]],
+    }),
+  ]);
+
+  const allTasks = [
+    ...personalTasks.map((t) => ({
+      title: t.title,
+      priority: t.priority,
+      subject: t.subject || "General",
+      deadline: t.deadline,
+      type: "personal",
+    })),
+    ...groupTasks.map((t) => ({
+      title: t.title + " (group)",
+      priority: t.priority,
+      subject: "Group",
+      deadline: t.dueDate,
+      type: "group",
+    })),
+  ];
+
+  if (!allTasks.length) {
+    return res.status(400).json({ message: "No pending tasks to schedule" });
+  }
+
+  const entries = deterministicSchedule(allTasks);
+  const schedule = await Schedule.create({
+    planData: { entries },
+    userId: req.user.id,
+  });
+
+  await setActiveSchedule(schedule, req.user.id);
+
+  res.status(201).json(schedule);
 };
