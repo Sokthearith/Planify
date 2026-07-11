@@ -13,6 +13,7 @@ export default (sequelize, DataTypes) => {
       title: { type: DataTypes.STRING, allowNull: false },
       description: { type: DataTypes.TEXT },
       deadline: { type: DataTypes.DATE },
+      estimatedHours: { type: DataTypes.FLOAT, allowNull: true },
       assignees: { type: DataTypes.JSON },
       priority: {
         type: DataTypes.ENUM("high", "medium", "low"),

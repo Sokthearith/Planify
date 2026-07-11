@@ -200,6 +200,7 @@ function App() {
     try {
       const saved = await PlanifyAPI.updateTask(id, { ...task, done: !task.done });
       setTasks(arr => arr.map(t => t.id === id ? saved : t));
+      await refreshSchedule();
     } catch (e) {
       setTasks(arr => arr.map(t => t.id === id ? task : t));
       notify(e.message || 'Could not update task');
@@ -220,6 +221,7 @@ function App() {
         ...gt,
         [gid]: (gt[gid] || []).map(t => t.id === id ? saved : t),
       }));
+      await refreshSchedule();
     } catch (e) {
       setGroupTasks(gt => ({
         ...gt,
@@ -233,6 +235,7 @@ function App() {
     setTasks(arr => arr.filter(t => t.id !== id));
     try {
       await PlanifyAPI.deleteTask(id);
+      await refreshSchedule();
       notify('Task deleted');
     } catch (e) {
       setTasks(previous);
@@ -244,6 +247,7 @@ function App() {
     setGroupTasks(gt => ({ ...gt, [gid]: previous.filter(t => t.id !== id) }));
     try {
       await PlanifyAPI.deleteGroupTask(gid, id);
+      await refreshSchedule();
       notify('Task deleted');
     } catch (e) {
       setGroupTasks(gt => ({ ...gt, [gid]: previous }));
@@ -283,6 +287,24 @@ function App() {
       notify(e.message || 'Task added, but schedule time could not be customized');
     }
   };
+  const refreshSchedule = async () => {
+    try {
+      const s = await PlanifyAPI.getActiveSchedule();
+      setActiveSchedule(s);
+    } catch (e) {}
+  };
+
+  const editPersonalTask = async (id, data) => {
+    try {
+      const saved = await PlanifyAPI.updateTask(id, data);
+      setTasks(arr => arr.map(t => t.id === id ? saved : t));
+      await refreshSchedule();
+      notify('Task updated');
+    } catch (e) {
+      notify(e.message || 'Could not update task');
+    }
+  };
+
   const addTask = async (data) => {
     try {
       const task = await PlanifyAPI.createTask({
@@ -291,9 +313,11 @@ function App() {
         subject: data.subject || 'General',
         due: data.due,
         priority: data.priority,
+        estimatedHours: data.estimatedHours || null,
       });
       setTasks(arr => upsertItem(arr, task));
       await saveTaskDeadlineTime(task, data.scheduleTime);
+      await refreshSchedule();
       notify('Task added');
     } catch (e) {
       notify(e.message || 'Could not add task');
@@ -309,9 +333,11 @@ function App() {
         subject: currentGroup?.subject || 'General',
         due: data.due,
         priority: data.priority,
+        estimatedHours: data.estimatedHours || null,
         assignees: data.assignees,
       }, lookup);
       setGroupTasks(gt => ({ ...gt, [gid]: upsertItem(gt[gid] || [], task) }));
+      await refreshSchedule();
       notify('Task added to group');
     } catch (e) {
       notify(e.message || 'Could not add group task');
@@ -372,6 +398,7 @@ function App() {
         ...gt,
         [gid]: (gt[gid] || []).map(t => t.id === id ? saved : t),
       }));
+      await refreshSchedule();
       notify('Task updated');
     } catch (e) {
       notify(e.message || 'Could not update task');
@@ -525,9 +552,9 @@ function App() {
       />
     );
   } else if (page === 'home') {
-    content = <HomePage user={currentUser} tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} goto={goto} />;
+    content = <HomePage user={currentUser} tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} onOpenTask={(t) => setEditingTask(t)} onEditTask={(t) => setEditingTask(t)} goto={goto} />;
   } else if (page === 'tasks') {
-    content = <TasksPage tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} />;
+    content = <TasksPage tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} onOpenTask={(t) => setEditingTask(t)} onEditTask={(t) => setEditingTask(t)} />;
   } else if (page === 'groups') {
     content = <GroupsPage groups={groupsView} onOpen={setOpenGroupId} onCreate={() => setShowCreateGroup(true)} />;
   } else if (page === 'schedule') {
@@ -666,8 +693,11 @@ function App() {
           onClose={() => { setShowAddTask(false); setEditingTask(null); setInitialTaskDraft(null); }}
           onAdd={(data) => currentGroup ? addGroupTask(currentGroup.id, data) : addTask(data)}
           onEdit={(data) => {
-            const gid = currentGroup.id;
-            editGroupTask(gid, editingTask.id, data);
+            if (currentGroup) {
+              editGroupTask(currentGroup.id, editingTask.id, data);
+            } else {
+              editPersonalTask(editingTask.id, data);
+            }
             setEditingTask(null);
           }}
         />

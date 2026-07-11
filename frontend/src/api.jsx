@@ -76,9 +76,11 @@ const PlanifyAPI = (() => {
       days > 1 ? days + ' days' :
       Math.abs(days) + ' days overdue';
 
+    const hasTime = value.includes('T') && !value.endsWith('T00:00:00.000Z') && !value.endsWith('T00:00');
     return {
       due,
       dueDate: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      dueTime: hasTime ? date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : null,
     };
   };
 
@@ -100,16 +102,24 @@ const PlanifyAPI = (() => {
       assigneeIds: task.assignees || [],
       rawDeadline,
       status: task.status || (done ? 'done' : 'pending'),
+    estimatedHours: task.estimatedHours != null && task.estimatedHours !== '' ? Number(task.estimatedHours) : null,
       ...due,
     };
+  };
+
+  const toDateValue = (v) => {
+    if (!v) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v;
+    return null;
   };
 
   const taskPayload = (task) => ({
     title: task.title,
     description: task.desc || task.description || '',
-    deadline: task.rawDeadline || (task.due && /^\d{4}-\d{2}-\d{2}/.test(task.due) ? task.due : null),
-    dueDate: task.rawDeadline || (task.due && /^\d{4}-\d{2}-\d{2}/.test(task.due) ? task.due : null),
+    deadline: task.rawDeadline || toDateValue(task.due),
+    dueDate: task.rawDeadline || toDateValue(task.due),
     priority: toApiPriority(task.priority),
+    estimatedHours: task.estimatedHours || null,
     done: task.done || false,
     status: task.done ? 'done' : (task.status || 'pending'),
     assignees: task.assigneeIds || task.assignees || [],
@@ -303,6 +313,9 @@ const PlanifyAPI = (() => {
       },
     })),
     autoGenerateSchedule: async () => toUiSchedule(await request('/schedules/auto-generate', { method: 'POST' })),
+    getAvailability: async () => request('/availability'),
+    setAvailability: async (slots) => request('/availability', { method: 'PUT', body: { slots } }),
+    deleteAvailability: async () => request('/availability', { method: 'DELETE' }),
     connectSocket: (handlers = {}) => {
       const token = getToken();
       if (!token) return null;

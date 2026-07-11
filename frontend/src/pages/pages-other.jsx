@@ -14,27 +14,53 @@ import {
 } from '../components/icons.jsx';
 import { PriorityTag, priorityClass, priorityLabel } from './pages-home-tasks.jsx';
 
-function SchedulePage({ schedule, onSaveSchedule, onCreateTaskAt }) {
+
+function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }) {
+  const [schedule, setSchedule] = React.useState(propSchedule);
   const [view, setView] = React.useState('week');
   const timezone = schedule?.planData?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const today = React.useMemo(() => new Date(), []);
-  const start = React.useMemo(() => {
-    const d = new Date(today);
+
+  React.useEffect(() => {
+    setSchedule(propSchedule);
+  }, [propSchedule]);
+
+  React.useEffect(() => {
+    PlanifyAPI.getActiveSchedule().then(setSchedule).catch(() => {});
+  }, []);
+  const todayRef = React.useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const mondayOfWeek = (date) => {
+    const d = new Date(date);
     const day = d.getDay() || 7;
     d.setDate(d.getDate() - day + 1);
     d.setHours(0, 0, 0, 0);
     return d;
-  }, [today]);
+  };
+  const [weekStart, setWeekStart] = React.useState(() => mondayOfWeek(new Date()));
+  const goPrevWeek = () => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() - 7);
+    setWeekStart(d);
+  };
+  const goNextWeek = () => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + 7);
+    setWeekStart(d);
+  };
+  const todayKey = todayRef.toLocaleDateString('en-CA', { timeZone: timezone });
   const days = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + i);
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + i);
     const key = date.toLocaleDateString('en-CA', { timeZone: timezone });
     return {
       key,
       d: date.toLocaleDateString(undefined, { weekday: 'short' }),
       n: date.getDate(),
       label: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      today: key === new Date().toLocaleDateString('en-CA', { timeZone: timezone }),
+      today: key === todayKey,
     };
   });
   const [activeDay, setActiveDay] = React.useState(days.find(d => d.today)?.key || days[0].key);
@@ -102,14 +128,21 @@ function SchedulePage({ schedule, onSaveSchedule, onCreateTaskAt }) {
     saveRows(hours.filter(row => row !== time));
   };
 
+
+
   return (
     <div className="page">
-      <div className="page-head row">
+      <div className="page-head row" style={{ flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div className="page-eyebrow">{weekRange} / {timezone}</div>
           <h1 className="t-h1" style={{ marginTop: 8 }}>Schedule <span style={{ color: 'var(--muted-2)', fontWeight: 500 }}>/ Live</span></h1>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button className="btn ghost" onClick={goPrevWeek} style={{ fontSize: 13 }}>←</button>
+            <span className="t-mut" style={{ fontSize: 13, fontWeight: 600, minWidth: 100, textAlign: 'center' }}>{weekRange}</span>
+            <button className="btn ghost" onClick={goNextWeek} style={{ fontSize: 13 }}>→</button>
+          </div>
           <div className="seg">
             {['day', 'week', 'month'].map(v => (
               <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{v.toUpperCase()}</button>
@@ -270,6 +303,7 @@ function SchedulePage({ schedule, onSaveSchedule, onCreateTaskAt }) {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span style={{ width: 14, height: 14, background: 'var(--bg-sub)', borderLeft: '3px solid var(--ink)' }}></span> Scheduled</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span style={{ width: 14, height: 14, background: 'var(--accent-soft)', borderLeft: '3px solid var(--accent)' }}></span> Urgent / due</span>
       </div>
+
     </div>
   );
 }

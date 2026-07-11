@@ -23,6 +23,7 @@ const pickTaskFields = (body) => {
     "description",
     "deadline",
     "dueDate",
+    "estimatedHours",
     "priority",
     "status",
     "done",

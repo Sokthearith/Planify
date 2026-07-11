@@ -62,10 +62,19 @@ function SubjectSelect({ value, onChange, subjects, onAddSubject }) {
   );
 }
 
+function toLocalDatetime(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd, editTask, initialTask, onEdit, isAdmin = true }) {
   const [title, setTitle] = React.useState(editTask?.title || initialTask?.title || '');
   const [desc, setDesc] = React.useState(editTask?.desc || initialTask?.description || '');
-  const [due, setDue] = React.useState(editTask?.rawDeadline?.split('T')[0] || initialTask?.due || '');
+  const [due, setDue] = React.useState(toLocalDatetime(editTask?.rawDeadline || initialTask?.due || ''));
+  const [estimatedHours, setEstimatedHours] = React.useState(editTask?.estimatedHours || initialTask?.estimatedHours || '');
   const [subject, setSubject] = React.useState(editTask?.subject || initialTask?.subject || context?.subject || '');
   const [priority, setPriority] = React.useState(editTask?.priority === 'urgent' ? 'high' : (editTask?.priority || initialTask?.priority || 'medium'));
   const [assignees, setAssignees] = React.useState(editTask?.assigneeIds || editTask?.assignees || initialTask?.assignees || []);
@@ -79,9 +88,9 @@ function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd, editTas
   const submit = () => {
     if (!valid) return;
     if (isEditing) {
-      onEdit({ title, description: desc, due, subject, priority, assignees });
+      onEdit({ title, description: desc, due, estimatedHours, subject, priority, assignees });
     } else {
-      onAdd({ title, description: desc, due, subject, priority, assignees, scheduleTime: initialTask?.scheduleTime });
+      onAdd({ title, description: desc, due, estimatedHours, subject, priority, assignees, scheduleTime: initialTask?.scheduleTime });
     }
     onClose();
   };
@@ -113,7 +122,11 @@ function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd, editTas
       ) : null}
       <div className="field">
         <label>Due date</label>
-        <input className="input" type="date" value={due} onChange={e => setDue(e.target.value)} />
+        <input className="input" type="datetime-local" value={due} onChange={e => setDue(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Est. hours <span className="t-eyebrow">(optional)</span></label>
+        <input className="input" type="number" min="0" step="0.5" placeholder="e.g. 2.5" value={estimatedHours} onChange={e => setEstimatedHours(e.target.value)} />
       </div>
       <div className="field">
         <label>Priority</label>

@@ -9,6 +9,7 @@ import scheduleRoutes from "./routes/scheduleRoute.js";
 import { startDeadlineReminderJob } from "./utils/deadlineReminderJob.js";
 import { initRealtime } from "./utils/realtime.js";
 import chatbotRoutes from "./routes/chatbotRoute.js";
+import availabilityRoutes from "./routes/availabilityRoute.js";
 
 config();
 await connectDB();
@@ -34,6 +35,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/schedules", scheduleRoutes);
 app.use("/api/chat", chatbotRoutes);
+app.use("/api/availability", availabilityRoutes);
 
 const PORT = 5001;
 

@@ -54,13 +54,19 @@ const deadlineEntryForTask = (task, entries, timezone, rows = []) => {
 
   const existing = entries.find((entry) => entry.sourceType === "task-deadline" && entry.sourceId === task.id);
 
+  const deadlineTime = () => {
+    const d = new Date(task.deadline);
+    if (isNaN(d.getTime())) return defaultDeadlineTime(entries, date, rows);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   return {
     id: existing?.id || `task:${task.id}`,
     sourceType: "task-deadline",
     sourceId: task.id,
     taskId: task.id,
     date,
-    time: existing?.manualTime ? existing.time : (existing?.time || defaultDeadlineTime(entries, date, rows)),
+    time: existing?.manualTime ? existing.time : deadlineTime(),
     manualTime: Boolean(existing?.manualTime),
     title: task.title,
     subj: task.subject || "Task",

@@ -23,7 +23,7 @@ const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log("Connected via Sequelize");
-    await sequelize.sync({ alter: true });
+    await sequelize.sync();
     console.log("Models synced with database");
   } catch (error) {
     console.error(`DB error: ${error.message}`);
@@ -43,6 +43,7 @@ import GroupMemberModel from "./GroupMember.js";
 import GroupTaskModel from "./GroupTask.js";
 import NotificationModel from "./Notifications.js";
 import GroupMessageModel from "./GroupMessage.js";
+import UserAvailabilityModel from "./UserAvailability.js";
 
 const User = UserModel(sequelize, DataTypes);
 const Task = TaskModel(sequelize, DataTypes);
@@ -52,6 +53,7 @@ const GroupMember = GroupMemberModel(sequelize, DataTypes);
 const GroupTask = GroupTaskModel(sequelize, DataTypes);
 const Notifications = NotificationModel(sequelize, DataTypes);
 const GroupMessage = GroupMessageModel(sequelize, DataTypes);
+const UserAvailability = UserAvailabilityModel(sequelize, DataTypes);
 
 User.hasMany(Task, { foreignKey: "userId", onDelete: "CASCADE" });
 Task.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
@@ -93,6 +95,9 @@ GroupMessage.belongsTo(User, {
 User.hasMany(Notifications, { foreignKey: "userId", onDelete: "CASCADE" });
 Notifications.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 
+User.hasMany(UserAvailability, { foreignKey: "userId", onDelete: "CASCADE" });
+UserAvailability.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
+
 Task.hasMany(Notifications, { foreignKey: "taskId", onDelete: "CASCADE" });
 Notifications.belongsTo(Task, { foreignKey: "taskId", onDelete: "CASCADE" });
 
@@ -108,4 +113,5 @@ export {
   GroupTask,
   GroupMessage,
   Notifications,
+  UserAvailability,
 };

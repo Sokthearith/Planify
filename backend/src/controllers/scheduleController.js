@@ -8,7 +8,7 @@ import {
 import { handleSmartScheduler } from "../services/genai.js";
 import { deterministicSchedule } from "../services/scheduler.js";
 import { Sequelize, Op } from "sequelize";
-import { Task, GroupTask } from "../models/index.js";
+import { Task, GroupTask, UserAvailability } from "../models/index.js";
 
 const getScheduleForUser = (scheduleId, userId) => {
   return Schedule.findOne({ where: { id: scheduleId, userId } });
@@ -145,7 +145,7 @@ export const generateScheduleFromText = async (req, res) => {
   res.status(201).json(schedule);
 };
 export const autoGenerateSchedule = async (req, res) => {
-  const [personalTasks, groupTasks] = await Promise.all([
+  const [personalTasks, groupTasks, availability] = await Promise.all([
     Task.findAll({
       where: { userId: req.user.id, status: ["pending", "in_progress"] },
       order: [["deadline", "ASC"]],
@@ -167,6 +167,7 @@ export const autoGenerateSchedule = async (req, res) => {
       },
       order: [["dueDate", "ASC"]],
     }),
+    UserAvailability.findAll({ where: { userId: req.user.id } }),
   ]);
 
   const allTasks = [
@@ -175,6 +176,7 @@ export const autoGenerateSchedule = async (req, res) => {
       priority: t.priority,
       subject: t.subject || "General",
       deadline: t.deadline,
+      estimatedHours: t.estimatedHours,
       type: "personal",
     })),
     ...groupTasks.map((t) => ({
@@ -190,7 +192,7 @@ export const autoGenerateSchedule = async (req, res) => {
     return res.status(400).json({ message: "No pending tasks to schedule" });
   }
 
-  const entries = deterministicSchedule(allTasks);
+  const entries = deterministicSchedule(allTasks, availability);
   const schedule = await Schedule.create({
     planData: { entries },
     userId: req.user.id,

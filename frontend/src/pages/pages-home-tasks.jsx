@@ -17,7 +17,7 @@ function PriorityTag({ priority }) {
   return <span className={'tag priority-tag ' + p}>{priorityLabel(priority)}</span>;
 }
 
-function TaskRow({ t, onToggle, onDelete, onClick }) {
+function TaskRow({ t, onToggle, onDelete, onClick, onEditTask }) {
   const p = priorityClass(t.priority);
   return (
     <div className={'task priority-' + p + (t.priority === 'urgent' ? ' urgent' : '') + (t.done ? ' done' : '')} onClick={onClick}>
@@ -35,11 +35,14 @@ function TaskRow({ t, onToggle, onDelete, onClick }) {
           <span>{t.subject}</span>
           <span className="sep">·</span>
           <span className={t.due === 'Tomorrow' || t.due === '1 day' ? 'due-soon' : ''}>{t.due}</span>
-          {t.dueDate ? <><span className="sep">·</span><span>{t.dueDate}</span></> : null}
+          {t.dueDate ? <><span className="sep">·</span><span>{t.dueDate}{t.dueTime ? ' ' + t.dueTime : ''}</span></> : null}
         </div>
       </div>
       <div className="right">
         <PriorityTag priority={t.priority} />
+        {onEditTask ? (
+          <button className="task-edit" onClick={e => { e.stopPropagation(); onEditTask(t); }} aria-label="Edit task" title="Edit task">Edit</button>
+        ) : null}
         {onDelete ? (
           <button
             className="task-del"
@@ -53,7 +56,7 @@ function TaskRow({ t, onToggle, onDelete, onClick }) {
   );
 }
 
-function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) {
+function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, onEditTask, goto }) {
   const firstName = (user?.username || user?.name || 'Student').trim().split(/\s+/)[0] || 'Student';
   const due = tasks.filter(t => !t.done).length;
   const done = tasks.filter(t => t.done).length;
@@ -113,7 +116,7 @@ function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) 
           </div>
           <div>
             {tasks.slice(0, 5).map(t => (
-              <TaskRow key={t.id} t={t} onToggle={onToggle} onDelete={onDelete} onClick={() => onOpenTask?.(t)} />
+              <TaskRow key={t.id} t={t} onToggle={onToggle} onDelete={onDelete} onClick={() => onOpenTask?.(t)} onEditTask={onEditTask} />
             ))}
           </div>
           <div style={{ padding: '14px 24px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -166,7 +169,7 @@ function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, goto }) 
   );
 }
 
-function TasksPage({ tasks, onToggle, onDelete, onAdd }) {
+function TasksPage({ tasks, onToggle, onDelete, onAdd, onOpenTask, onEditTask }) {
   const [filter, setFilter] = React.useState('all');
   const [sort, setSort] = React.useState('none');
   const [q, setQ] = React.useState('');
@@ -226,7 +229,7 @@ function TasksPage({ tasks, onToggle, onDelete, onAdd }) {
             {q ? <button className="btn ghost sm" style={{ marginTop: 16 }} onClick={() => setQ('')}>Clear search</button> : null}
           </div>
         ) : sorted.map(t => (
-          <TaskRow key={t.id} t={t} onToggle={onToggle} onDelete={onDelete} />
+          <TaskRow key={t.id} t={t} onToggle={onToggle} onDelete={onDelete} onClick={() => onOpenTask?.(t)} onEditTask={onEditTask} />
         ))}
       </div>
       <div className="t-mut" style={{ marginTop: 12 }}>{sorted.length} of {tasks.length} tasks shown</div>
