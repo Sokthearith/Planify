@@ -27,6 +27,7 @@ Implemented and wired through the frontend API adapter:
 * Adding group members
 * Group task CRUD
 * Notification loading, read state, and deletion
+* Gemini-assisted schedule generation with validated structured output and local fallback
 
 Implemented on the backend and still needing frontend verification:
 
@@ -35,7 +36,6 @@ Implemented on the backend and still needing frontend verification:
 * Progress data persistence
 * Profile persistence
 * Settings persistence
-* AI schedule backend integration
 
 Not currently implemented:
 
@@ -150,6 +150,9 @@ DB_PORT=3306
 
 JWT_SECRET=your_jwt_secret
 
+# Required for Gemini-powered schedule generation and chat
+GEMINI_API_KEY=your_google_ai_studio_key
+
 NODE_ENV=development
 FRONTEND_ORIGIN=http://localhost:5173
 
@@ -163,6 +166,8 @@ SMTP_SECURE=false
 ```
 
 In local development without `SMTP_HOST`, forgot-password verification codes are logged by the backend and returned to the frontend so the flow can be tested.
+
+Create the Gemini key in [Google AI Studio](https://aistudio.google.com/app/apikey). Keep it in the backend environment only; never expose it through a `VITE_` variable or commit it to source control. When the key is missing or Gemini is temporarily unavailable, AI Schedule uses the local deterministic planner and labels the result as a fallback.
 
 Start the backend:
 

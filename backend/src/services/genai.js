@@ -1,10 +1,22 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 const MODEL = "gemini-2.5-flash";
 
+let client;
+
+const getClient = () => {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    const error = new Error("Gemini API key is not configured");
+    error.code = "GEMINI_NOT_CONFIGURED";
+    throw error;
+  }
+  if (!client) client = new GoogleGenAI({ apiKey });
+  return client;
+};
+
 export async function handleChatbot(userMessage, conversationHistory = []) {
+  const ai = getClient();
   const contents = [
     ...conversationHistory,
     { role: "user", parts: [{ text: userMessage }] },
@@ -28,6 +40,7 @@ export async function handleChatbot(userMessage, conversationHistory = []) {
 }
 
 export async function handleSmartScheduler(userScheduleRequest) {
+  const ai = getClient();
   const response = await ai.models.generateContent({
     model: MODEL,
     contents: [{ role: "user", parts: [{ text: userScheduleRequest }] }],
@@ -59,48 +72,92 @@ export async function handleSmartScheduler(userScheduleRequest) {
 
   return JSON.parse(response.text);
 }
-export async function autoScheduleTasks(tasks) {
+export async function autoScheduleTasks(tasks, options = {}) {
+  const ai = getClient();
+  const {
+    weekStart,
+    timezone = "UTC",
+    focusStart = "08:00",
+    focusEnd = "20:00",
+    sessionMinutes = 60,
+    includeWeekends = true,
+    instructions = "",
+    availability = [],
+  } = options;
+
   const taskList = tasks
     .map(
-      (t) =>
-        `- "${t.title}" | priority: ${t.priority} | subject: ${t.subject || "General"} | deadline: ${t.deadline ? new Date(t.deadline).toLocaleDateString() : "none"}`,
+      (t, index) =>
+        `- T${index + 1} | "${t.title}" | priority: ${t.priority} | subject: ${t.subject || "General"} | deadline: ${t.deadline || "none"} | estimated hours: ${t.estimatedHours || "not provided"}`,
     )
     .join("\n");
 
-  const prompt = `Here are my existing tasks. Create an optimized weekly study schedule that places each task into specific time blocks. Consider priority (high first), deadlines (urgent first), and balance subjects across days.\n\nTasks:\n${taskList}\n\nReturn a JSON array of scheduled blocks. Spread tasks across weekdays (Monday–Friday), 08:00–20:00. Assign each entry to a specific day. Group shorter tasks together.`;
+  const availabilityList = availability.length
+    ? availability
+        .map(
+          (slot) =>
+            `- day ${slot.dayOfWeek}: ${slot.startTime}-${slot.endTime} (${slot.type})${slot.name ? `, ${slot.name}` : ""}`,
+        )
+        .join("\n")
+    : "No saved availability. Use the requested focus window.";
+
+  const prompt = `Build a practical study plan for the seven-day period beginning ${weekStart} in timezone ${timezone}.
+
+Tasks:
+${taskList}
+
+Planning preferences:
+- Daily focus window: ${focusStart}-${focusEnd}
+- Preferred session length: ${sessionMinutes} minutes
+- Weekends: ${includeWeekends ? "available" : "do not schedule"}
+- Additional instructions: ${instructions.trim() || "none"}
+
+Saved availability (day numbers use Sunday=0 through Saturday=6):
+${availabilityList}
+
+Schedule every task at least once. Split tasks into multiple sessions when estimated time requires it. Do not schedule overlapping sessions, outside the seven-day period, outside the focus window, in blocked availability, or after a task deadline. Use the task reference (T1, T2, etc.) exactly.`;
 
   const response = await ai.models.generateContent({
     model: MODEL,
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     config: {
       systemInstruction:
-        "You are an AI study scheduler. Given a list of tasks with priorities, subjects, and deadlines, " +
-        "you generate an optimized weekly schedule. Output ONLY valid JSON matching the schema. " +
-        "Place high-priority and urgent tasks in peak hours (morning). Balance subjects across the week. " +
-        "Distribute tasks across Monday through Friday. Include short breaks between tasks. " +
-        "Every task from the input must appear in the schedule.",
+        "You are the scheduling engine for Planify, a student productivity app. Return a realistic, conflict-free study plan as structured JSON. " +
+        "Prioritize urgent deadlines, distribute demanding work across the week, and keep the explanation concise. " +
+        "Dates must use YYYY-MM-DD and times must use 24-hour HH:MM. Do not invent tasks.",
       responseMimeType: "application/json",
       responseJsonSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            taskName: { type: Type.STRING },
-            day: {
-              type: Type.STRING,
-              enum: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-            },
-            startTime: { type: Type.STRING },
-            endTime: { type: Type.STRING },
-            priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+        type: Type.OBJECT,
+        properties: {
+          summary: { type: Type.STRING },
+          strategyNotes: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
           },
-          propertyOrdering: ["taskName", "day", "startTime", "endTime", "priority"],
+          entries: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                taskRef: { type: Type.STRING },
+                date: { type: Type.STRING },
+                startTime: { type: Type.STRING },
+                endTime: { type: Type.STRING },
+                reason: { type: Type.STRING },
+              },
+              required: ["taskRef", "date", "startTime", "endTime", "reason"],
+            },
+          },
         },
+        required: ["summary", "strategyNotes", "entries"],
       },
       temperature: 0.3,
       maxOutputTokens: 8192,
     },
   });
 
-  return JSON.parse(response.text);
+  return {
+    ...JSON.parse(response.text),
+    model: MODEL,
+  };
 }

@@ -177,6 +177,7 @@ const PlanifyAPI = (() => {
   const toUiSchedule = (schedule) => ({
     ...schedule,
     planData: {
+      ...(schedule.planData && !Array.isArray(schedule.planData) ? schedule.planData : {}),
       timezone: schedule.planData?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
       entries: Array.isArray(schedule.planData?.entries)
         ? schedule.planData.entries
@@ -312,7 +313,10 @@ const PlanifyAPI = (() => {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
     })),
-    autoGenerateSchedule: async () => toUiSchedule(await request('/schedules/auto-generate', { method: 'POST' })),
+    autoGenerateSchedule: async (preferences = {}) => toUiSchedule(await request('/schedules/auto-generate', {
+      method: 'POST',
+      body: preferences,
+    })),
     getAvailability: async () => request('/availability'),
     setAvailability: async (slots) => request('/availability', { method: 'PUT', body: { slots } }),
     deleteAvailability: async () => request('/availability', { method: 'DELETE' }),

@@ -11,15 +11,23 @@ function getDayConfig(dayIndex) {
   return dayIndex === 0 || dayIndex === 6 ? DAY_CONFIG.weekend : DAY_CONFIG.weekday;
 }
 
-function getFallbackWindows(dayIndex) {
+function getFallbackWindows(dayIndex, options = {}) {
+  if (options.includeWeekends === false && (dayIndex === 0 || dayIndex === 6)) {
+    return [];
+  }
   const config = getDayConfig(dayIndex);
+  const preferredStart = options.focusStart ? timeToMinutes(options.focusStart) : config.start * 60;
+  const preferredEnd = options.focusEnd ? timeToMinutes(options.focusEnd) : config.end * 60;
+  const start = Math.max(config.start * 60, preferredStart);
+  const end = Math.min(config.end * 60, preferredEnd);
+  if (end <= start) return [];
   if (config.lunchStart !== undefined && config.lunchEnd !== undefined) {
     return [
-      { start: config.start * 60, end: config.lunchStart * 60 },
-      { start: config.lunchEnd * 60, end: config.end * 60 },
-    ];
+      { start, end: Math.min(end, config.lunchStart * 60) },
+      { start: Math.max(start, config.lunchEnd * 60), end },
+    ].filter((window) => window.end > window.start);
   }
-  return [{ start: config.start * 60, end: config.end * 60 }];
+  return [{ start, end }];
 }
 
 function timeToMinutes(str) {
@@ -41,9 +49,13 @@ function subtractWindows(avail, blocked) {
   return windows;
 }
 
-function buildAvailabilityMap(availability) {
+function buildAvailabilityMap(availability, options = {}) {
   const map = {};
   for (let i = 0; i < 7; i++) {
+    if (options.includeWeekends === false && (i === 0 || i === 6)) {
+      map[i] = [];
+      continue;
+    }
     const available = [];
     const blocked = [];
 
@@ -61,13 +73,20 @@ function buildAvailabilityMap(availability) {
     available.sort((a, b) => a.start - b.start);
     blocked.sort((a, b) => a.start - b.start);
 
-    map[i] = subtractWindows(available, blocked);
+    const focusStart = options.focusStart ? timeToMinutes(options.focusStart) : 0;
+    const focusEnd = options.focusEnd ? timeToMinutes(options.focusEnd) : 24 * 60;
+    map[i] = subtractWindows(available, blocked)
+      .map((window) => ({
+        start: Math.max(window.start, focusStart),
+        end: Math.min(window.end, focusEnd),
+      }))
+      .filter((window) => window.end > window.start);
   }
   return map;
 }
 
-function dateFromOffset(offset) {
-  const d = new Date();
+function dateFromOffset(offset, startDate) {
+  const d = startDate ? new Date(`${startDate}T12:00:00`) : new Date();
   d.setDate(d.getDate() + offset);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -114,7 +133,8 @@ function totalMinutes(task) {
   return 60;
 }
 
-function chunkSize(task) {
+function chunkSize(task, sessionMinutes) {
+  if (sessionMinutes) return sessionMinutes;
   if (task.priority === "high") return 90;
   return 60;
 }
@@ -150,11 +170,11 @@ function placeEntry(task, chunkMinutes, date, dayName, windows, cursor, sessionI
   return { placed: false, cursor: 0 };
 }
 
-export function deterministicSchedule(tasks, availability = null) {
+export function deterministicSchedule(tasks, availability = null, options = {}) {
   if (!tasks.length) return [];
 
   const availabilityMap = availability?.length
-    ? buildAvailabilityMap(availability)
+    ? buildAvailabilityMap(availability, options)
     : null;
 
   const sorted = sortTasks(tasks);
@@ -164,23 +184,33 @@ export function deterministicSchedule(tasks, availability = null) {
 
   for (const task of sorted) {
     let remaining = totalMinutes(task);
-    const chunk = chunkSize(task);
+    const chunk = chunkSize(task, options.sessionMinutes);
     const totalSessions = Math.ceil(remaining / chunk);
     let sessionCount = 0;
 
     while (remaining > 0) {
-      const date = dateFromOffset(dayOffset);
+      const date = dateFromOffset(dayOffset, options.weekStart);
       const dayIndex = date.getDay();
       const dayName = DAY_NAMES[dayIndex];
 
       const windows = availabilityMap
         ? availabilityMap[dayIndex]
-        : getFallbackWindows(dayIndex);
+        : getFallbackWindows(dayIndex, options);
 
-      const currentChunk = Math.min(chunk, remaining);
-      sessionCount++;
+      const largestWindow = windows.reduce(
+        (largest, window) => Math.max(largest, window.end - window.start),
+        0,
+      );
+      if (!largestWindow) {
+        dayOffset++;
+        cursor = 0;
+        continue;
+      }
 
-      const sessionInfo = totalSessions > 1 ? { current: sessionCount, total: totalSessions } : undefined;
+      const currentChunk = Math.min(chunk, remaining, largestWindow);
+      const sessionInfo = totalSessions > 1
+        ? { current: sessionCount + 1, total: Math.max(totalSessions, sessionCount + 1) }
+        : undefined;
       const result = placeEntry(task, currentChunk, date, dayName, windows, cursor, sessionInfo);
 
       if (!result.placed) {
@@ -190,6 +220,7 @@ export function deterministicSchedule(tasks, availability = null) {
       }
 
       entries.push(result.entry);
+      sessionCount++;
       remaining -= currentChunk;
       cursor = result.cursor;
     }
