@@ -15,6 +15,10 @@ export default (sequelize, DataTypes) => {
     {
       timestamps: false,
       tableName: "Schedule",
+      indexes: [
+        { fields: ["userId"] },
+        { fields: ["userId", "isActive"] },
+      ],
     },
   );
 };

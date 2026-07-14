@@ -32,6 +32,10 @@ export default (sequelize, DataTypes) => {
     {
       timestamps: false,
       tableName: "GroupTask",
+      indexes: [
+        { fields: ["groupId"] },
+        { fields: ["createBy"] },
+      ],
     },
   );
 };

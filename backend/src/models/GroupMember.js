@@ -18,6 +18,11 @@ export default (sequelize, DataTypes) => {
     {
       timestamps: false,
       tableName: "GroupMember",
+      indexes: [
+        { fields: ["groupId", "userId"] },
+        { fields: ["userId", "status"] },
+        { fields: ["groupId", "status"] },
+      ],
     },
   );
 };
