@@ -1,0 +1,37 @@
+name: Database Backup
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MySQL client
+        run: sudo apt-get update && sudo apt-get install -y mysql-client
+
+      - name: Run mysqldump
+        run: |
+          mysqldump \
+            -h "${{ secrets.DB_HOST }}" \
+            -P "${{ secrets.DB_PORT }}" \
+            -u "${{ secrets.DB_USER }}" \
+            -p"${{ secrets.DB_PASSWORD }}" \
+            --ssl-mode=REQUIRED \
+            --single-transaction \
+            --quick \
+            --routines \
+            --triggers \
+            "${{ secrets.DB_NAME }}" \
+            | gzip > planify_backup_$(date +%Y%m%d_%H%M%S).sql.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: planify-mysql-backup
+          path: "*.sql.gz"
+          retention-days: 30
