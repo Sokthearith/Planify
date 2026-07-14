@@ -11,8 +11,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install MySQL client
-        run: sudo apt-get update && sudo apt-get install -y mysql-client
+      - name: Install MySQL client and GPG
+        run: sudo apt-get update && sudo apt-get install -y mysql-client gnupg
 
       - name: Run mysqldump
         run: |
@@ -27,11 +27,19 @@ jobs:
             --routines \
             --triggers \
             "${{ secrets.DB_NAME }}" \
-            | gzip > planify_backup_$(date +%Y%m%d_%H%M%S).sql.gz
+            | gzip > planify_$(date +%Y%m%d_%H%M%S).sql.gz
 
-      - name: Upload artifact
+      - name: Encrypt backup with passphrase
+        run: |
+          echo "${{ secrets.BACKUP_PASSPHRASE }}" | gpg --symmetric \
+            --passphrase-fd 0 \
+            --batch \
+            --cipher-algo AES256 \
+            *.sql.gz
+
+      - name: Upload encrypted artifact
         uses: actions/upload-artifact@v4
         with:
-          name: planify-mysql-backup
-          path: "*.sql.gz"
+          name: planify-backup-encrypted
+          path: "*.gpg"
           retention-days: 30
