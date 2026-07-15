@@ -14,7 +14,6 @@ import { TimeMapPopup } from "../components/time-map.jsx";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DEFAULT_PREFERENCES = {
-  instructions: "",
   focusStart: "08:00",
   focusEnd: "20:00",
   sessionMinutes: 60,
@@ -87,10 +86,6 @@ function restoredPreferences(schedule) {
   if (!saved || typeof saved !== "object") return null;
 
   return {
-    instructions:
-      typeof saved.instructions === "string"
-        ? saved.instructions
-        : DEFAULT_PREFERENCES.instructions,
     focusStart:
       typeof saved.focusStart === "string"
         ? saved.focusStart
@@ -272,45 +267,8 @@ function AISchedulePage({ onAdd }) {
         </button>
       </header>
 
-      <form className="ai-composer" onSubmit={generate} aria-busy={generating}>
-        <div className="ai-composer-copy">
-          <div className="ai-composer-title">
-            <IconSpark size={18} />
-            <div>
-              <h2>Plan with Gemini</h2>
-              <p>Gemini uses your pending tasks, deadlines, saved availability, and the controls below.</p>
-            </div>
-          </div>
-          <label className="ai-prompt-label" htmlFor="schedule-instructions">
-            Planning instructions
-          </label>
-          <textarea
-            id="schedule-instructions"
-            value={preferences.instructions}
-            onChange={(event) => updatePreference("instructions", event.target.value)}
-            placeholder="Example: Put calculus before lunch and keep Friday evening light."
-            maxLength={800}
-            rows={3}
-            disabled={generating}
-          />
-          <div className="ai-prompt-presets" aria-label="Planning instruction presets">
-            {["Prioritize urgent deadlines", "Keep evenings light", "Balance subjects evenly"].map(
-              (preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => updatePreference("instructions", preset)}
-                  aria-pressed={preferences.instructions === preset}
-                  disabled={generating}
-                >
-                  {preset}
-                </button>
-              ),
-            )}
-          </div>
-        </div>
-
-        <div className="ai-preferences">
+      <form className="ai-composer ai-composer-controls" onSubmit={generate} aria-busy={generating}>
+        <div className="ai-preferences ai-preferences-row">
           <div className="ai-field-group">
             <label htmlFor="focus-start">Focus window</label>
             <div className="ai-time-range">

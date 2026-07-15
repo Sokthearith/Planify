@@ -109,11 +109,29 @@ const IconLogout = ({ size }) => (
     <path d="M8 12 H18" />
   </I>
 );
+const IconChat = ({ size }) => (
+  <I size={size}>
+    <path d="M4 5 H20 V17 H9 L4 21 Z" />
+    <path d="M8 9 H16 M8 13 H13" />
+  </I>
+);
+const IconSend = ({ size }) => (
+  <I size={size}>
+    <path d="M3 11.5 L21 3 L13 21 L10.5 13.5 Z" />
+    <path d="M10.5 13.5 L21 3" />
+  </I>
+);
+const IconTrash = ({ size }) => (
+  <I size={size}>
+    <path d="M4 7 H20 M9 3 H15 L16 7 H8 Z M7 7 L8 21 H16 L17 7" />
+    <path d="M10 11 V17 M14 11 V17" />
+  </I>
+);
 
 Object.assign(window, {
   IconHome, IconTasks, IconGroups, IconCal, IconProgress, IconBell, IconUser, IconGear,
   IconBack, IconPlus, IconClose, IconArrow, IconCheck, IconSearch, IconAddUser, IconSpark, IconClock,
-  IconEye, IconEyeOff, IconLogout
+  IconEye, IconEyeOff, IconLogout, IconChat, IconSend, IconTrash
 });
 
 export {
@@ -137,4 +155,7 @@ export {
   IconEye,
   IconEyeOff,
   IconLogout,
+  IconChat,
+  IconSend,
+  IconTrash,
 };

@@ -317,6 +317,13 @@ const PlanifyAPI = (() => {
       method: 'POST',
       body: preferences,
     })),
+    chat: async (message, history = []) => {
+      const response = await request('/chat', {
+        method: 'POST',
+        body: { message, history },
+      });
+      return response?.answer || '';
+    },
     getAvailability: async () => request('/availability'),
     setAvailability: async (slots) => request('/availability', { method: 'PUT', body: { slots } }),
     deleteAvailability: async () => request('/availability', { method: 'DELETE' }),

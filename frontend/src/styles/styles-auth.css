@@ -1185,6 +1185,21 @@
   grid-template-columns: minmax(0, 1.45fr) minmax(330px, .75fr);
 }
 
+.ai-composer-controls {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ai-composer-controls .ai-preferences-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.25fr) minmax(150px, .7fr) minmax(190px, 1fr) minmax(280px, 1.25fr);
+  align-items: end;
+  gap: 18px;
+}
+
+.ai-composer-controls .ai-generate-actions {
+  margin-top: 0;
+}
+
 .ai-composer-copy {
   min-width: 0;
   padding: 24px;
@@ -1882,6 +1897,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .ai-composer-controls .ai-preferences-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .ai-weekend-toggle,
   .ai-generate-actions {
     align-self: end;
@@ -1909,6 +1928,11 @@
 
   .ai-preferences,
   .ai-insights-column {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+
+  .ai-composer-controls .ai-preferences-row {
     grid-template-columns: minmax(0, 1fr);
   }
 

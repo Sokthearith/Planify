@@ -12,6 +12,7 @@ import {
   useTweaks,
 } from './components/tweaks-panel.jsx';
 import { Sidebar } from './components/sidebar.jsx';
+import { AIChatPanel } from './components/ai-chat-panel.jsx';
 import { AddTaskModal, CreateGroupModal } from './components/modals.jsx';
 import { HomePage, TasksPage } from './pages/pages-home-tasks.jsx';
 import { GroupsPage, GroupDetailPage } from './pages/pages-groups.jsx';
@@ -680,6 +681,7 @@ function App() {
         onGoLanding={() => setAuthView('landing')}
       />
       <main>{content}</main>
+      <AIChatPanel key={currentUser?.id || currentUser?.email} user={currentUser} />
 
       {showAddTask || editingTask ? (
         <AddTaskModal
