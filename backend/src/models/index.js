@@ -23,7 +23,7 @@ const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log("Connected via Sequelize");
-    await sequelize.sync();
+    await sequelize.sync({ alter: true });
     console.log("Models synced with database");
   } catch (error) {
     console.error(`DB error: ${error.message}`);
@@ -82,8 +82,14 @@ Task.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
 StudyGroup.hasMany(GroupTask, { foreignKey: "groupId", onDelete: "CASCADE" });
 GroupTask.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
 
-StudyGroup.hasMany(GroupMessage, { foreignKey: "groupId", onDelete: "CASCADE" });
-GroupMessage.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
+StudyGroup.hasMany(GroupMessage, {
+  foreignKey: "groupId",
+  onDelete: "CASCADE",
+});
+GroupMessage.belongsTo(StudyGroup, {
+  foreignKey: "groupId",
+  onDelete: "CASCADE",
+});
 
 User.hasMany(GroupMessage, { foreignKey: "senderId", onDelete: "CASCADE" });
 GroupMessage.belongsTo(User, {
