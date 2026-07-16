@@ -1,6 +1,7 @@
 import { StudyGroup, GroupMember, GroupTask, User } from "../models/index.js";
 import createNotification from "../utils/createNotification.js";
 import { emitToGroup, emitToGroupMembers, emitToUser } from "../utils/realtime.js";
+import { syncUserSchedulesWithTaskDeadlines } from "../utils/scheduleSync.js";
 
 const allowedPriorities = ["high", "medium", "low"];
 
@@ -26,6 +27,27 @@ const validateGroupTask = ({ title, priority }, requireTitle = false) => {
     return { message: "Invalid priority" };
   }
   return null;
+};
+
+const parseAssignees = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+  return [];
+};
+
+const syncAssigneeSchedules = async (...assigneeLists) => {
+  const userIds = new Set();
+  assigneeLists.flat().forEach((userId) => {
+    if (userId) userIds.add(userId);
+  });
+  await Promise.all([...userIds].map((userId) => syncUserSchedulesWithTaskDeadlines(userId)));
 };
 
 export const createGroup = async (req, res) => {
@@ -147,9 +169,15 @@ export const deleteGroup = async (req, res) => {
   if (group.createBy !== req.user.id)
     return res.status(403).json({ message: "Only the creator can delete" });
 
+  const acceptedMembers = await GroupMember.findAll({
+    where: { groupId: req.params.id, status: "accepted" },
+    attributes: ["userId"],
+  });
+  const affectedUserIds = acceptedMembers.map((member) => member.userId);
   await emitToGroupMembers(req.params.id, "group:deleted", { id: req.params.id });
   emitToGroup(req.params.id, "group:deleted", { id: req.params.id });
   await group.destroy();
+  await syncAssigneeSchedules(affectedUserIds);
   res.json({ message: "Group deleted" });
 };
 
@@ -204,11 +232,13 @@ export const removeMember = async (req, res) => {
   if (group.createBy !== req.user.id && member.userId !== req.user.id)
     return res.status(403).json({ message: "Not Authorized" });
 
+  const removedUserId = member.userId;
   await member.destroy();
+  await syncUserSchedulesWithTaskDeadlines(removedUserId);
   await emitToGroupMembers(req.params.id, "group:member-removed", {
     groupId: req.params.id,
     memberId: req.params.memberId,
-    userId: member.userId,
+    userId: removedUserId,
   });
   res.json({ message: "Member removed" });
 };
@@ -256,6 +286,7 @@ export const createGroupTask = async (req, res) => {
     message: `Group task created: ${task.title}`,
   });
 
+  await syncAssigneeSchedules(parseAssignees(task.assignees));
   await emitToGroupMembers(group.id, "group-task:created", task);
 
   res.status(201).json(task);
@@ -276,9 +307,10 @@ export const updateGroupTask = async (req, res) => {
   if (!task) return res.status(404).json({ message: "Task Not Found" });
 
   const taskData = pickGroupTaskFields(req.body);
+  const previousAssignees = parseAssignees(task.assignees);
 
   if (group.createBy !== req.user.id) {
-    const assigneeIds = typeof task.assignees === 'string' ? JSON.parse(task.assignees) : (task.assignees || []);
+    const assigneeIds = previousAssignees;
     if (!assigneeIds.includes(req.user.id)) {
       return res.status(403).json({ message: "Only assigned members or the creator can edit this task" });
     }
@@ -289,6 +321,7 @@ export const updateGroupTask = async (req, res) => {
   if (error) return res.status(400).json(error);
 
   await task.update(taskData);
+  await syncAssigneeSchedules(previousAssignees, parseAssignees(task.assignees));
   await emitToGroupMembers(group.id, "group-task:updated", task);
   res.json(task);
 };
@@ -311,7 +344,9 @@ export const deleteGroupTask = async (req, res) => {
   });
   if (!task) return res.status(404).json({ message: "Task Not Found" });
 
+  const previousAssignees = parseAssignees(task.assignees);
   await task.destroy();
+  await syncAssigneeSchedules(previousAssignees);
   await emitToGroupMembers(group.id, "group-task:deleted", {
     groupId: group.id,
     id: req.params.taskId,
@@ -334,6 +369,7 @@ export const acceptInvite = async (req, res) => {
   if (!membership) return res.status(404).json({ message: "Invite not found" });
 
   await membership.update({ status: "accepted" });
+  await syncUserSchedulesWithTaskDeadlines(req.user.id);
   await emitToGroupMembers(req.params.id, "group:member-updated", {
     groupId: req.params.id,
     userId: req.user.id,

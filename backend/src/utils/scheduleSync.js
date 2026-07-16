@@ -1,4 +1,10 @@
-import { Schedule, Task } from "../models/index.js";
+import {
+  GroupMember,
+  GroupTask,
+  Schedule,
+  StudyGroup,
+  Task,
+} from "../models/index.js";
 import { emitToUser } from "./realtime.js";
 
 const DEFAULT_TIMEZONE = "UTC";
@@ -78,12 +84,60 @@ const deadlineEntryForTask = (task, entries, timezone, rows = []) => {
   };
 };
 
+const parseAssignees = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+  return [];
+};
+
+const deadlineEntryForGroupTask = (task, group, entries, timezone, rows = []) => {
+  const date = dateKeyInTimezone(task.dueDate, timezone);
+  if (!date) return null;
+
+  const sourceId = `group-task:${task.id}`;
+  const existing = entries.find(
+    (entry) => entry.sourceType === "group-task-deadline" && entry.sourceId === sourceId,
+  );
+
+  const deadlineTime = () => {
+    const d = new Date(task.dueDate);
+    if (Number.isNaN(d.getTime())) return defaultDeadlineTime(entries, date, rows);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  return {
+    id: existing?.id || sourceId,
+    sourceType: "group-task-deadline",
+    sourceId,
+    groupTaskId: task.id,
+    groupId: task.groupId,
+    date,
+    time: existing?.manualTime ? existing.time : deadlineTime(),
+    manualTime: Boolean(existing?.manualTime),
+    title: task.title,
+    subj: group?.name || group?.subject || "Group task",
+    priority: task.priority,
+    status: task.done ? "done" : "pending",
+    done: Boolean(task.done),
+    urgent: task.priority === "high",
+    kind: "deadline",
+  };
+};
+
 export const syncTaskDeadlinesForSchedule = async (schedule, options = {}) => {
   const timezone = options.timezone || schedule.planData?.timezone || DEFAULT_TIMEZONE;
   const planData = normalizePlanData(schedule.planData, timezone);
   const rows = Array.isArray(planData.rows) ? planData.rows : [];
-  const manualEntries = planData.entries.filter((entry) => entry.sourceType !== "task-deadline");
-  const oldDeadlineEntries = planData.entries.filter((entry) => entry.sourceType === "task-deadline");
+  const deadlineSourceTypes = new Set(["task-deadline", "group-task-deadline"]);
+  const manualEntries = planData.entries.filter((entry) => !deadlineSourceTypes.has(entry.sourceType));
+  const oldDeadlineEntries = planData.entries.filter((entry) => deadlineSourceTypes.has(entry.sourceType));
 
   const tasks = await Task.findAll({
     where: { userId: schedule.userId, groupId: null },
@@ -95,10 +149,33 @@ export const syncTaskDeadlinesForSchedule = async (schedule, options = {}) => {
     .map((task) => deadlineEntryForTask(task, [...manualEntries, ...oldDeadlineEntries], timezone, rows))
     .filter(Boolean);
 
+  const memberships = await GroupMember.findAll({
+    where: { userId: schedule.userId, status: "accepted" },
+    attributes: ["groupId"],
+  });
+  const groupIds = memberships.map((membership) => membership.groupId);
+  const groupTasks = groupIds.length
+    ? await GroupTask.findAll({
+        where: { groupId: groupIds },
+        include: [{ model: StudyGroup }],
+        order: [["dueDate", "ASC"]],
+      })
+    : [];
+  const groupTaskEntries = groupTasks
+    .filter((task) => task.dueDate && parseAssignees(task.assignees).includes(schedule.userId))
+    .map((task) => deadlineEntryForGroupTask(
+      task,
+      task.StudyGroup,
+      [...manualEntries, ...oldDeadlineEntries],
+      timezone,
+      rows,
+    ))
+    .filter(Boolean);
+
   const nextPlanData = {
     ...planData,
     timezone,
-    entries: [...manualEntries, ...taskEntries],
+    entries: [...manualEntries, ...taskEntries, ...groupTaskEntries],
   };
 
   await schedule.update({ planData: nextPlanData });

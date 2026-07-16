@@ -56,22 +56,38 @@ function TaskRow({ t, onToggle, onDelete, onClick, onEditTask }) {
   );
 }
 
+function isDueToday(task) {
+  if (!task?.rawDeadline) return false;
+  const dueDate = new Date(task.rawDeadline);
+  if (Number.isNaN(dueDate.getTime())) return false;
+  const today = new Date();
+  return dueDate.getFullYear() === today.getFullYear() &&
+    dueDate.getMonth() === today.getMonth() &&
+    dueDate.getDate() === today.getDate();
+}
+
 function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, onEditTask, goto }) {
   const firstName = (user?.username || user?.name || 'Student').trim().split(/\s+/)[0] || 'Student';
-  const due = tasks.filter(t => !t.done).length;
+  const todayTasks = tasks.filter(t => !t.done && isDueToday(t));
+  const openTasks = tasks.filter(t => !t.done);
+  const due = todayTasks.length;
   const done = tasks.filter(t => t.done).length;
   const hours = 0;
   const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
-  const nextUp = tasks.find(t => !t.done && t.priority === 'urgent') || tasks.find(t => !t.done);
+  const nextUp = todayTasks.find(t => t.priority === 'urgent') || todayTasks[0] || openTasks[0];
+  const todayList = (todayTasks.length ? todayTasks : openTasks).slice(0, 5);
+  const todayLabel = new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
 
   const weekActivity = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => ({ d, l: 0 }));
 
   return (
     <div className="page">
       <div className="page-eyebrow">
-        <span>Wednesday, June 5</span>
-        <span className="sep">/</span>
-        <span>Week 23</span>
+        <span>{todayLabel}</span>
       </div>
       <div className="headline-row" style={{ marginTop: 14 }}>
         <h1 className="t-h1">
@@ -110,17 +126,17 @@ function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, onEditTa
           <div className="panel-head">
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
               <h2 className="t-h2">Today</h2>
-              <span className="t-mut">{tasks.filter(t => !t.done).slice(0, 5).length} open</span>
+              <span className="t-mut">{todayTasks.length} due today</span>
             </div>
             <button className="btn iconbtn" onClick={onAdd}><IconPlus size={14} /></button>
           </div>
           <div>
-            {tasks.slice(0, 5).map(t => (
+            {todayList.map(t => (
               <TaskRow key={t.id} t={t} onToggle={onToggle} onDelete={onDelete} onClick={() => onOpenTask?.(t)} onEditTask={onEditTask} />
             ))}
           </div>
           <div style={{ padding: '14px 24px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="t-mut">Showing {Math.min(5, tasks.length)} of {tasks.length}</span>
+            <span className="t-mut">Showing {todayList.length} of {todayTasks.length || openTasks.length}</span>
             <button className="btn ghost sm" onClick={() => goto('tasks')}>View all <IconArrow size={12} /></button>
           </div>
         </div>

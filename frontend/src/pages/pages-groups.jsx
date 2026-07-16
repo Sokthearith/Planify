@@ -112,6 +112,13 @@ function GroupDetailPage({ user, group, tasks, messages = [], chatHistoryLoaded 
     chatEndRef.current?.scrollIntoView({ block: 'end' });
   }, [messages.length]);
   React.useEffect(() => {
+    if (!chatCollapsed) {
+      requestAnimationFrame(() => {
+        chatEndRef.current?.scrollIntoView({ block: 'end' });
+      });
+    }
+  }, [chatCollapsed]);
+  React.useEffect(() => {
     setChatCollapsed(true);
     setUnseenMessages(0);
     seenMessageIdsRef.current = new Set();

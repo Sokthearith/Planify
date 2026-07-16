@@ -946,12 +946,46 @@ button, input, select, textarea { max-width: 100%; }
 .month .mcell.clickable:hover { background: var(--bg-sub); }
 .month .mcell .num { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
 .month .mcell.today .num { color: var(--accent); }
+.month .mcell.muted {
+  background: #fafafa;
+  color: var(--muted-2);
+}
 .month .mcell .count {
   font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--muted); font-weight: 600;
   border-left: 3px solid var(--ink);
   background: var(--bg-sub);
   padding: 4px 6px;
+}
+.month-event {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: baseline;
+  padding: 5px 6px;
+  border-left: 3px solid var(--ink);
+  background: var(--bg-sub);
+  font-size: 10px;
+  line-height: 1.25;
+}
+.month-event.urgent {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.month-event.done {
+  opacity: 0.62;
+}
+.month-event-time {
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.month-event-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
 }
 
 /* notifications: clickable rows + dismiss */

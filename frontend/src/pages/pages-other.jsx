@@ -50,6 +50,16 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
     d.setDate(d.getDate() + 7);
     setWeekStart(d);
   };
+  const goPrevMonth = () => {
+    const d = new Date(weekStart);
+    d.setMonth(d.getMonth() - 1);
+    setWeekStart(mondayOfWeek(d));
+  };
+  const goNextMonth = () => {
+    const d = new Date(weekStart);
+    d.setMonth(d.getMonth() + 1);
+    setWeekStart(mondayOfWeek(d));
+  };
   const todayKey = todayRef.toLocaleDateString('en-CA', { timeZone: timezone });
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date(weekStart);
@@ -81,6 +91,29 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
   const countFor = (dayKey) => (eventsByDay[dayKey] || []).length;
   const activeInfo = days.find(d => d.key === activeDay) || days[0];
   const weekRange = days[0].label + ' - ' + days[6].label;
+  const monthStart = React.useMemo(() => {
+    const d = new Date(weekStart);
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [weekStart]);
+  const monthLabel = monthStart.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const monthCells = React.useMemo(() => {
+    const firstDay = monthStart.getDay() || 7;
+    const gridStart = new Date(monthStart);
+    gridStart.setDate(monthStart.getDate() - firstDay + 1);
+    return Array.from({ length: 42 }, (_, i) => {
+      const date = new Date(gridStart);
+      date.setDate(gridStart.getDate() + i);
+      const key = date.toLocaleDateString('en-CA', { timeZone: timezone });
+      return {
+        key,
+        dayNum: date.getDate(),
+        inMonth: date.getMonth() === monthStart.getMonth(),
+        today: key === todayKey,
+      };
+    });
+  }, [monthStart, timezone, todayKey]);
 
   const saveEntries = async (nextEntries) => {
     if (!schedule) return;
@@ -134,13 +167,13 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
     <div className="page">
       <div className="page-head row" style={{ flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div className="page-eyebrow">{weekRange} / {timezone}</div>
+          <div className="page-eyebrow">{view === 'month' ? monthLabel : weekRange} / {timezone}</div>
           <h1 className="t-h1" style={{ marginTop: 8 }}>Schedule <span style={{ color: 'var(--muted-2)', fontWeight: 500 }}>/ Live</span></h1>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button className="btn ghost" onClick={goPrevWeek} style={{ fontSize: 13 }}>←</button>
-            <span className="t-mut" style={{ fontSize: 13, fontWeight: 600, minWidth: 100, textAlign: 'center' }}>{weekRange}</span>
+            <span className="t-mut" style={{ fontSize: 13, fontWeight: 600, minWidth: 100, textAlign: 'center' }}>{view === 'month' ? monthLabel : weekRange}</span>
             <button className="btn ghost" onClick={goNextWeek} style={{ fontSize: 13 }}>→</button>
           </div>
           <div className="seg">
@@ -148,11 +181,11 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
               <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{v.toUpperCase()}</button>
             ))}
           </div>
-          <button className="btn" onClick={addRow} disabled={!schedule}><IconPlus size={14} /> Add row</button>
+          {view !== 'month' ? <button className="btn" onClick={addRow} disabled={!schedule}><IconPlus size={14} /> Add row</button> : null}
         </div>
       </div>
 
-      <div className="schedule-row-controls">
+      {view !== 'month' ? <div className="schedule-row-controls">
         {hours.map(time => (
           <div key={time} className="schedule-row-control">
             <input
@@ -167,7 +200,7 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
             </button>
           </div>
         ))}
-      </div>
+      </div> : null}
 
       {view === 'week' ? (
         <div className="week-wrap">
@@ -275,23 +308,23 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
             <div key={d} className="hd">{d}</div>
           ))}
-          {Array.from({ length: 42 }, (_, i) => {
+          {monthCells.map((cell) => {
             // Mon June 2 — so June 1 lands on the Sunday of the first row
-            const n = i - 5;
-            const dayNum = n >= 1 && n <= 30 ? n : null;
-            const wd = days[i % 7];
-            const inWeek = dayNum !== null && dayNum >= 2 && dayNum <= 8;
-            const count = inWeek ? countFor(wd.key) : 0;
-            const today = inWeek && wd.today;
+            const dayEvents = (eventsByDay[cell.key] || []).filter(ev => String(ev.title || '').trim());
             return (
               <div
-                key={i}
-                className={'mcell' + (dayNum ? ' clickable' : '') + (today ? ' today' : '')}
-                onClick={dayNum ? () => { if (inWeek) { setActiveDay(wd.key); setView('day'); } } : undefined}
-                title={dayNum ? (inWeek ? 'Open June ' + dayNum : 'Add event') : undefined}
+                key={cell.key}
+                className={'mcell clickable' + (!cell.inMonth ? ' muted' : '') + (cell.today ? ' today' : '')}
+                onClick={() => { setActiveDay(cell.key); setView('day'); }}
+                title={'Open ' + cell.key}
               >
-                {dayNum ? <span className="num">{String(dayNum).padStart(2, '0')}</span> : null}
-                {count > 0 ? <span className="count">{count} events</span> : null}
+                <span className="num">{String(cell.dayNum).padStart(2, '0')}</span>
+                {dayEvents.map(ev => (
+                  <div key={ev.id} className={'month-event' + (ev.urgent || ev.kind === 'deadline' ? ' urgent' : '') + (ev.done ? ' done' : '')}>
+                    <span className="month-event-time">{ev.time || ''}</span>
+                    <span className="month-event-title">{ev.title}</span>
+                  </div>
+                ))}
               </div>
             );
           })}
