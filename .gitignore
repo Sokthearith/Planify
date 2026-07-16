@@ -5,6 +5,7 @@ backend/node_modules/
 .env
 .env.*
 backend/.env
+backend/.lazy.lua
 backend/test
 frontend/.env
 *.log
