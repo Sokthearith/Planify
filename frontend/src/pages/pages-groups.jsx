@@ -63,13 +63,15 @@ function GroupsPage({ groups, onOpen, onCreate }) {
   );
 }
 
-function GroupDetailPage({ user, group, tasks, messages = [], onBack, onToggle, onDelete, onDeleteGroup, onAddTask, onAddMember, onEditTask, onRemoveMember, onSendMessage }) {
+function GroupDetailPage({ user, group, tasks, messages = [], chatHistoryLoaded = false, onBack, onToggle, onDelete, onDeleteGroup, onAddTask, onAddMember, onEditTask, onRemoveMember, onSendMessage }) {
   const [inviteEmail, setInviteEmail] = React.useState('');
   const [chatText, setChatText] = React.useState('');
-  const [chatCollapsed, setChatCollapsed] = React.useState(false);
+  const [chatCollapsed, setChatCollapsed] = React.useState(true);
+  const [unseenMessages, setUnseenMessages] = React.useState(0);
   const [showInvite, setShowInvite] = React.useState(false);
   const [inviting, setInviting] = React.useState(false);
   const chatEndRef = React.useRef(null);
+  const seenMessageIdsRef = React.useRef(new Set());
   const teamMembers = group.memberList || [];
   const isAdmin = user?.id && group.createdBy === user.id;
 
@@ -109,6 +111,26 @@ function GroupDetailPage({ user, group, tasks, messages = [], onBack, onToggle, 
   React.useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'end' });
   }, [messages.length]);
+  React.useEffect(() => {
+    setChatCollapsed(true);
+    setUnseenMessages(0);
+    seenMessageIdsRef.current = new Set();
+  }, [group.id]);
+  React.useEffect(() => {
+    if (!chatHistoryLoaded) return;
+    setUnseenMessages(0);
+    seenMessageIdsRef.current = new Set(messages.map(m => m.id));
+  }, [chatHistoryLoaded, group.id]);
+  React.useEffect(() => {
+    if (!chatHistoryLoaded) return;
+    const seen = seenMessageIdsRef.current;
+    const newMessages = messages.filter(m => !seen.has(m.id));
+    if (newMessages.length > 0 && chatCollapsed) {
+      setUnseenMessages(count => count + newMessages.filter(m => m.senderId !== user?.id).length);
+    }
+    if (!chatCollapsed) setUnseenMessages(0);
+    seenMessageIdsRef.current = new Set(messages.map(m => m.id));
+  }, [messages, chatCollapsed, user?.id, chatHistoryLoaded]);
   return (
     <div className="page">
       <div className="page-eyebrow">
@@ -234,7 +256,7 @@ function GroupDetailPage({ user, group, tasks, messages = [], onBack, onToggle, 
             <div className="panel-head" style={{ padding: '18px 20px' }}>
               <h3 className="t-h3">Chat</h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="t-mut">{messages.length} messages</span>
+                <span className="t-mut">{unseenMessages} new messages</span>
                 <button className="btn ghost sm" onClick={() => setChatCollapsed(v => !v)}>
                   {chatCollapsed ? 'Open' : 'Minimize'}
                 </button>

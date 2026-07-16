@@ -47,6 +47,7 @@ function App() {
   const [notifications, setNotifications] = React.useState([]);
   const [groups, setGroups] = React.useState([]);
   const [groupMessages, setGroupMessages] = React.useState({});
+  const [groupMessagesLoaded, setGroupMessagesLoaded] = React.useState({});
   const [activeSchedule, setActiveSchedule] = React.useState(null);
   const [subjects, setSubjects] = usePersistentState('subjects', SUBJECTS);
   const [showAddTask, setShowAddTask] = React.useState(false);
@@ -179,6 +180,7 @@ function App() {
     setGroupTasks({});
     setNotifications([]);
     setGroupMessages({});
+    setGroupMessagesLoaded({});
     setActiveSchedule(null);
     setOpenGroupId(null);
     setPage('home');
@@ -259,6 +261,7 @@ function App() {
     try {
       const messages = await PlanifyAPI.listGroupMessages(gid);
       setGroupMessages(prev => ({ ...prev, [gid]: messages }));
+      setGroupMessagesLoaded(prev => ({ ...prev, [gid]: true }));
     } catch (e) {
       notify(e.message || 'Could not load chat');
     }
@@ -526,6 +529,7 @@ function App() {
 
   React.useEffect(() => {
     if (!openGroupId || !window.PlanifySocket) return undefined;
+    setGroupMessagesLoaded(prev => ({ ...prev, [openGroupId]: false }));
     window.PlanifySocket.emit('group:join', { groupId: openGroupId }, (ack) => {
       if (!ack?.ok) notify(ack?.message || 'Could not join group chat');
     });
@@ -541,6 +545,7 @@ function App() {
         group={currentGroup}
         tasks={groupTasks[currentGroup.id] || []}
         messages={groupMessages[currentGroup.id] || []}
+        chatHistoryLoaded={!!groupMessagesLoaded[currentGroup.id]}
         onBack={() => setOpenGroupId(null)}
         onToggle={(id) => toggleGroupTask(currentGroup.id, id)}
         onDelete={(id) => deleteGroupTask(currentGroup.id, id)}
