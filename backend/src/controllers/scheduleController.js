@@ -49,6 +49,15 @@ const DAY_NAMES = [
   "Saturday",
 ];
 
+const dateInTimezone = (date, timezone) => {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone || "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+};
+
 const dateKey = (value) => {
   if (!value) return null;
   if (typeof value === "string" && DATE_PATTERN.test(value.slice(0, 10))) {
@@ -58,11 +67,12 @@ const dateKey = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
 };
 
-const startOfCurrentWeek = () => {
-  const date = new Date();
-  const day = date.getDay();
-  date.setDate(date.getDate() - day + (day === 0 ? -6 : 1));
-  return date.toISOString().slice(0, 10);
+const startOfCurrentWeek = (timezone) => {
+  const todayStr = dateInTimezone(new Date(), timezone);
+  const today = new Date(`${todayStr}T00:00:00.000Z`);
+  const day = today.getUTCDay();
+  today.setUTCDate(today.getUTCDate() - day + (day === 0 ? -6 : 1));
+  return today.toISOString().slice(0, 10);
 };
 
 const normalizePreferences = (body = {}) => {
@@ -71,7 +81,7 @@ const normalizePreferences = (body = {}) => {
   return {
     weekStart: DATE_PATTERN.test(body.weekStart || "")
       ? body.weekStart
-      : startOfCurrentWeek(),
+      : startOfCurrentWeek(body.timezone),
     timezone:
       typeof body.timezone === "string" && body.timezone.length <= 80
         ? body.timezone
@@ -100,8 +110,12 @@ const normalizeGeminiEntries = (
   preferences,
   availability = [],
 ) => {
-  const { weekStart } = preferences;
-  const firstDay = new Date(`${weekStart}T00:00:00.000Z`);
+  const { weekStart, timezone } = preferences;
+  const today = new Date(`${dateInTimezone(new Date(), timezone)}T00:00:00.000Z`);
+  const firstDay = new Date(Math.max(
+    new Date(`${weekStart}T00:00:00.000Z`).getTime(),
+    today.getTime()
+  ));
   const lastDay = new Date(firstDay);
   lastDay.setUTCDate(lastDay.getUTCDate() + 6);
   const lastEndByDate = new Map();
@@ -119,7 +133,8 @@ const normalizeGeminiEntries = (
       const dayOfWeek = entryDate.getUTCDay();
       if (!preferences.includeWeekends && (dayOfWeek === 0 || dayOfWeek === 6)) return null;
       if (entry.startTime < preferences.focusStart || entry.endTime > preferences.focusEnd) return null;
-      if (task.deadline && entry.date > task.deadline) return null;
+      const deadlinePast = task.deadline ? new Date(`${task.deadline}T23:59:59.000Z`) < today : false;
+      if (!deadlinePast && task.deadline && entry.date > task.deadline) return null;
 
       const daySlots = availability.filter((slot) => slot.dayOfWeek === dayOfWeek);
       const availableSlots = daySlots.filter((slot) => slot.type === "available");
@@ -156,7 +171,7 @@ const normalizeGeminiEntries = (
     .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))
     .filter((entry) => {
       const lastEnd = lastEndByDate.get(entry.date);
-      if (lastEnd !== undefined && timeInMinutes(entry.startTime) < lastEnd) {
+      if (lastEnd !== undefined && timeInMinutes(entry.startTime) < lastEnd + 10) {
         return false;
       }
       lastEndByDate.set(entry.date, timeInMinutes(entry.endTime));
@@ -348,7 +363,7 @@ export const autoGenerateSchedule = async (req, res) => {
     });
     entries = normalizeGeminiEntries(result, allTasks, preferences, availability);
     generation = {
-      provider: "gemini",
+      provider: "groq",
       model: result.model,
       summary: result.summary,
       strategyNotes: Array.isArray(result.strategyNotes)
@@ -357,14 +372,14 @@ export const autoGenerateSchedule = async (req, res) => {
       preferences,
     };
   } catch (error) {
-    console.warn(`Gemini schedule fallback: ${error.message}`);
+    console.warn(`Groq schedule fallback: ${error.message}`);
     entries = deterministicSchedule(allTasks, availability, preferences);
     generation = {
       provider: "local-fallback",
       model: null,
       summary:
-        error.code === "GEMINI_NOT_CONFIGURED"
-          ? "Generated locally because the Gemini API key is not configured."
+        error.code === "BAZAARLINK_NOT_CONFIGURED"
+          ? "Generated locally because the BazaarLink API key is not configured."
           : "Generated locally because Gemini was temporarily unavailable.",
       strategyNotes: [
         "Tasks are ordered by priority and deadline.",

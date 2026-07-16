@@ -188,8 +188,15 @@ export function deterministicSchedule(tasks, availability = null, options = {}) 
     const totalSessions = Math.ceil(remaining / chunk);
     let sessionCount = 0;
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     while (remaining > 0) {
       const date = dateFromOffset(dayOffset, options.weekStart);
+      if (date < today) {
+        dayOffset++;
+        continue;
+      }
       const dayIndex = date.getDay();
       const dayName = DAY_NAMES[dayIndex];
 

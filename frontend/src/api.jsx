@@ -66,10 +66,10 @@ const PlanifyAPI = (() => {
     if (Number.isNaN(date.getTime())) return { due: 'Scheduled', dueDate: value };
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
     const target = new Date(date);
-    target.setHours(0, 0, 0, 0);
-    const days = Math.round((target - today) / 86400000);
+    const targetUTC = new Date(Date.UTC(target.getFullYear(), target.getMonth(), target.getDate()));
+    const days = Math.round((targetUTC - todayUTC) / 86400000);
     const due =
       days === 0 ? 'Today' :
       days === 1 ? 'Tomorrow' :

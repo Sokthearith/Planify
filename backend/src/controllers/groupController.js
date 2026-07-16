@@ -110,6 +110,8 @@ export const getMyGroups = async (req, res) => {
           { model: User, as: "creator", attributes: ["id", "name"] },
           {
             model: GroupMember,
+            where: { status: "accepted" },
+            required: false,
             include: [{ model: User, attributes: ["id", "name", "email"] }],
           },
         ],
