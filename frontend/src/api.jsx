@@ -125,15 +125,17 @@ const PlanifyAPI = (() => {
     assignees: task.assigneeIds || task.assignees || [],
   });
 
+  const toUiGroupMember = (member) => ({
+    id: member.userId,
+    memberId: member.id,
+    name: member.User?.name || member.User?.email || '',
+    initials: initials(member.User?.name || member.User?.email, 'U'),
+    role: member.role || 'member',
+  });
+
   const toUiGroup = (group, user) => {
     const rawMembers = group.GroupMembers || [];
-    const memberList = rawMembers.map(member => ({
-      id: member.userId,
-      memberId: member.id,
-      name: member.User?.name || member.User?.email || '',
-      initials: initials(member.User?.name || member.User?.email, 'U'),
-      role: member.role || 'member',
-    }));
+    const memberList = rawMembers.map(toUiGroupMember);
     const subject = group.subject || 'General';
     return {
       id: group.id,
@@ -174,16 +176,19 @@ const PlanifyAPI = (() => {
     senderInitials: initials(message.sender?.name || message.sender?.email, 'U'),
   });
 
-  const toUiSchedule = (schedule) => ({
-    ...schedule,
-    planData: {
-      ...(schedule.planData && !Array.isArray(schedule.planData) ? schedule.planData : {}),
-      timezone: schedule.planData?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-      entries: Array.isArray(schedule.planData?.entries)
-        ? schedule.planData.entries
-        : (Array.isArray(schedule.planData) ? schedule.planData : []),
-    },
-  });
+  const toUiSchedule = (schedule) => {
+    if (!schedule) return null;
+    return {
+      ...schedule,
+      planData: {
+        ...(schedule.planData && !Array.isArray(schedule.planData) ? schedule.planData : {}),
+        timezone: schedule.planData?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        entries: Array.isArray(schedule.planData?.entries)
+          ? schedule.planData.entries
+          : (Array.isArray(schedule.planData) ? schedule.planData : []),
+      },
+    };
+  };
 
   const saveAuth = (payload) => {
     localStorage.setItem(TOKEN_KEY, payload.token);
@@ -226,6 +231,7 @@ const PlanifyAPI = (() => {
     initials,
     toUiTask,
     toUiGroup,
+    toUiGroupMember,
     toUiNotification,
     toUiMessage,
     toUiSchedule,
@@ -273,7 +279,7 @@ const PlanifyAPI = (() => {
     loadGroupsWithTasks,
     createGroup: async (group, user) => toUiGroup(await request('/groups', {
       method: 'POST',
-      body: { name: group.name, subject: group.subject },
+      body: { name: group.name, subject: group.subject, invites: group.invites || [] },
     }), user),
     deleteGroup: async (groupId) => request('/groups/' + groupId, {
       method: 'DELETE',
@@ -285,6 +291,9 @@ const PlanifyAPI = (() => {
     removeGroupMember: async (groupId, memberId) => request('/groups/' + groupId + '/members/' + memberId, {
       method: 'DELETE',
     }),
+    listGroupTasks: async (groupId, memberLookup = {}) =>
+      (await request('/groups/' + groupId + '/tasks'))
+        .map(task => toUiTask(task, memberLookup)),
     createGroupTask: async (groupId, task, memberLookup = {}) => toUiTask(await request('/groups/' + groupId + '/tasks', {
       method: 'POST',
       body: taskPayload(task),

@@ -1,7 +1,19 @@
-import { StudyGroup, GroupMember, GroupTask, User } from "../models/index.js";
+import {
+  GroupMember,
+  GroupTask,
+  GroupTaskAssignee,
+  sequelize,
+  StudyGroup,
+  User,
+} from "../models/index.js";
 import createNotification from "../utils/createNotification.js";
 import { emitToGroup, emitToGroupMembers, emitToUser } from "../utils/realtime.js";
-import { syncUserSchedulesWithTaskDeadlines } from "../utils/scheduleSync.js";
+import {
+  removeGroupDeadlinesForUsers,
+  removeGroupTaskDeadlineForUsers,
+  syncGroupTaskDeadlinesForUser,
+  upsertGroupTaskDeadlineForUsers,
+} from "../utils/scheduleSync.js";
 
 const allowedPriorities = ["high", "medium", "low"];
 
@@ -42,17 +54,78 @@ const parseAssignees = (value) => {
   return [];
 };
 
-const syncAssigneeSchedules = async (...assigneeLists) => {
-  const userIds = new Set();
-  assigneeLists.flat().forEach((userId) => {
-    if (userId) userIds.add(userId);
+const normalizeAssignees = (value) =>
+  [...new Set(parseAssignees(value).filter((userId) => typeof userId === "string" && userId))];
+
+const getTaskAssigneeIds = async (task) => {
+  const links = await GroupTaskAssignee.findAll({
+    where: { groupTaskId: task.id },
+    attributes: ["userId"],
   });
-  await Promise.all([...userIds].map((userId) => syncUserSchedulesWithTaskDeadlines(userId)));
+  return links.length
+    ? links.map((link) => link.userId)
+    : normalizeAssignees(task.assignees);
+};
+
+const replaceTaskAssignees = async (taskId, userIds, transaction) => {
+  await GroupTaskAssignee.destroy({
+    where: { groupTaskId: taskId },
+    transaction,
+  });
+  if (userIds.length) {
+    await GroupTaskAssignee.bulkCreate(
+      userIds.map((userId) => ({ groupTaskId: taskId, userId })),
+      { transaction },
+    );
+  }
+};
+
+const syncGroupTaskSchedules = async (task, group, previousIds, nextIds) => {
+  const previous = new Set(previousIds);
+  const next = new Set(nextIds);
+  const removed = [...previous].filter((userId) => !next.has(userId));
+  await Promise.all([
+    upsertGroupTaskDeadlineForUsers([...next], task, group),
+    removeGroupTaskDeadlineForUsers(removed, task.id),
+  ]);
+};
+
+const removeUserFromGroupTaskAssignments = async (groupId, userId) => {
+  const tasks = await GroupTask.findAll({
+    where: { groupId },
+    include: [{
+      model: GroupTaskAssignee,
+      as: "assigneeLinks",
+      where: { userId },
+      attributes: [],
+      required: true,
+    }],
+    attributes: ["id", "assignees"],
+  });
+  const taskIds = tasks.map((task) => task.id);
+  if (!taskIds.length) return;
+
+  await sequelize.transaction(async (transaction) => {
+    await GroupTaskAssignee.destroy({
+      where: { groupTaskId: taskIds, userId },
+      transaction,
+    });
+    await Promise.all(tasks.map((task) => {
+      const assignees = normalizeAssignees(task.assignees)
+        .filter((assigneeId) => assigneeId !== userId);
+      return task.update({ assignees }, { transaction });
+    }));
+  });
 };
 
 export const createGroup = async (req, res) => {
   const { name, subject, invites } = req.body;
   if (!name) return res.status(400).json({ message: "Name is required" });
+  const inviteEmails = [...new Set(
+    (Array.isArray(invites) ? invites : [])
+      .map((email) => String(email).trim().toLowerCase())
+      .filter(Boolean),
+  )];
 
   const group = await StudyGroup.create({
     name,
@@ -65,8 +138,9 @@ export const createGroup = async (req, res) => {
     role: "admin",
   });
 
-  if (invites && invites.length > 0) {
-    const users = await User.findAll({ where: { email: invites } });
+  if (inviteEmails.length > 0) {
+    const foundUsers = await User.findAll({ where: { email: inviteEmails } });
+    const users = foundUsers.filter((user) => user.id !== req.user.id);
     const members = users.map((u) => ({
       groupId: group.id,
       userId: u.id,
@@ -92,6 +166,8 @@ export const createGroup = async (req, res) => {
     include: [
       {
         model: GroupMember,
+        where: { status: "accepted" },
+        required: false,
         include: [{ model: User, attributes: ["id", "name", "email"] }],
       },
     ],
@@ -179,7 +255,7 @@ export const deleteGroup = async (req, res) => {
   await emitToGroupMembers(req.params.id, "group:deleted", { id: req.params.id });
   emitToGroup(req.params.id, "group:deleted", { id: req.params.id });
   await group.destroy();
-  await syncAssigneeSchedules(affectedUserIds);
+  await removeGroupDeadlinesForUsers(affectedUserIds, group.id);
   res.json({ message: "Group deleted" });
 };
 
@@ -236,12 +312,15 @@ export const removeMember = async (req, res) => {
 
   const removedUserId = member.userId;
   await member.destroy();
-  await syncUserSchedulesWithTaskDeadlines(removedUserId);
-  await emitToGroupMembers(req.params.id, "group:member-removed", {
+  await removeUserFromGroupTaskAssignments(req.params.id, removedUserId);
+  await removeGroupDeadlinesForUsers([removedUserId], req.params.id);
+  const payload = {
     groupId: req.params.id,
     memberId: req.params.memberId,
     userId: removedUserId,
-  });
+  };
+  await emitToGroupMembers(req.params.id, "group:member-removed", payload);
+  emitToUser(removedUserId, "group:member-removed", payload);
   res.json({ message: "Member removed" });
 };
 
@@ -270,15 +349,19 @@ export const createGroupTask = async (req, res) => {
   const taskData = pickGroupTaskFields(req.body);
   const error = validateGroupTask(taskData, true);
   if (error) return res.status(400).json(error);
-
-  const task = await GroupTask.create({
-    groupId: group.id,
-    createBy: req.user.id,
-    title: taskData.title,
-    description: taskData.description,
-    dueDate: taskData.dueDate,
-    priority: taskData.priority,
-    assignees: taskData.assignees || [],
+  const assigneeIds = normalizeAssignees(taskData.assignees);
+  const task = await sequelize.transaction(async (transaction) => {
+    const created = await GroupTask.create({
+      groupId: group.id,
+      createBy: req.user.id,
+      title: taskData.title,
+      description: taskData.description,
+      dueDate: taskData.dueDate,
+      priority: taskData.priority,
+      assignees: assigneeIds,
+    }, { transaction });
+    await replaceTaskAssignees(created.id, assigneeIds, transaction);
+    return created;
   });
 
   await createNotification({
@@ -288,7 +371,7 @@ export const createGroupTask = async (req, res) => {
     message: `Group task created: ${task.title}`,
   });
 
-  await syncAssigneeSchedules(parseAssignees(task.assignees));
+  await upsertGroupTaskDeadlineForUsers(assigneeIds, task, group);
   await emitToGroupMembers(group.id, "group-task:created", task);
 
   res.status(201).json(task);
@@ -309,7 +392,7 @@ export const updateGroupTask = async (req, res) => {
   if (!task) return res.status(404).json({ message: "Task Not Found" });
 
   const taskData = pickGroupTaskFields(req.body);
-  const previousAssignees = parseAssignees(task.assignees);
+  const previousAssignees = await getTaskAssigneeIds(task);
 
   if (group.createBy !== req.user.id) {
     const assigneeIds = previousAssignees;
@@ -322,8 +405,18 @@ export const updateGroupTask = async (req, res) => {
   const error = validateGroupTask(taskData);
   if (error) return res.status(400).json(error);
 
-  await task.update(taskData);
-  await syncAssigneeSchedules(previousAssignees, parseAssignees(task.assignees));
+  const nextAssignees = taskData.assignees !== undefined
+    ? normalizeAssignees(taskData.assignees)
+    : previousAssignees;
+  if (taskData.assignees !== undefined) taskData.assignees = nextAssignees;
+
+  await sequelize.transaction(async (transaction) => {
+    await task.update(taskData, { transaction });
+    if (taskData.assignees !== undefined) {
+      await replaceTaskAssignees(task.id, nextAssignees, transaction);
+    }
+  });
+  await syncGroupTaskSchedules(task, group, previousAssignees, nextAssignees);
   await emitToGroupMembers(group.id, "group-task:updated", task);
   res.json(task);
 };
@@ -346,9 +439,9 @@ export const deleteGroupTask = async (req, res) => {
   });
   if (!task) return res.status(404).json({ message: "Task Not Found" });
 
-  const previousAssignees = parseAssignees(task.assignees);
+  const previousAssignees = await getTaskAssigneeIds(task);
   await task.destroy();
-  await syncAssigneeSchedules(previousAssignees);
+  await removeGroupTaskDeadlineForUsers(previousAssignees, task.id);
   await emitToGroupMembers(group.id, "group-task:deleted", {
     groupId: group.id,
     id: req.params.taskId,
@@ -371,13 +464,15 @@ export const acceptInvite = async (req, res) => {
   if (!membership) return res.status(404).json({ message: "Invite not found" });
 
   await membership.update({ status: "accepted" });
-  await syncUserSchedulesWithTaskDeadlines(req.user.id);
+  await syncGroupTaskDeadlinesForUser(req.user.id, req.params.id);
+  const full = await GroupMember.findByPk(membership.id, {
+    include: [{ model: User, attributes: ["id", "name", "email"] }],
+  });
   await emitToGroupMembers(req.params.id, "group:member-updated", {
     groupId: req.params.id,
-    userId: req.user.id,
-    status: "accepted",
+    member: full,
   });
-  res.status(200).json({ message: "Invite accepted" });
+  res.status(200).json({ message: "Invite accepted", member: full });
 };
 
 export const rejectInvite = async (req, res) => {

@@ -1,7 +1,7 @@
 import { Schedule } from "../models/index.js";
 import { emitToUser } from "../utils/realtime.js";
 import {
-  ensureActiveSchedule,
+  findActiveSchedule,
   normalizeSchedulePayload,
   syncTaskDeadlinesForSchedule,
 } from "../utils/scheduleSync.js";
@@ -10,8 +10,13 @@ import {
   handleSmartScheduler,
 } from "../services/genai.js";
 import { deterministicSchedule } from "../services/scheduler.js";
-import { Sequelize, Op } from "sequelize";
-import { Task, GroupTask, UserAvailability } from "../models/index.js";
+import { Op } from "sequelize";
+import {
+  GroupTask,
+  GroupTaskAssignee,
+  Task,
+  UserAvailability,
+} from "../models/index.js";
 
 const getScheduleForUser = (scheduleId, userId) => {
   return Schedule.findOne({ where: { id: scheduleId, userId } });
@@ -210,7 +215,7 @@ export const createSchedule = async (req, res) => {
 };
 
 export const getActiveSchedule = async (req, res) => {
-  const schedule = await ensureActiveSchedule(req.user.id, req.query.timezone);
+  const schedule = await findActiveSchedule(req.user.id);
   res.json(schedule);
 };
 
@@ -224,13 +229,6 @@ export const getMySchedules = async (req, res) => {
     order: [["generatedAt", "DESC"]],
   });
 
-  if (req.query.withDeadlines === "true") {
-    for (const schedule of schedules) {
-      await syncTaskDeadlinesForSchedule(schedule, {
-        timezone: req.query.timezone,
-      });
-    }
-  }
 
   res.json(schedules);
 };
@@ -238,10 +236,6 @@ export const getMySchedules = async (req, res) => {
 export const getScheduleById = async (req, res) => {
   const schedule = await getScheduleForUser(req.params.id, req.user.id);
   if (!schedule) return res.status(404).json({ message: "Schedule Not Found" });
-
-  await syncTaskDeadlinesForSchedule(schedule, {
-    timezone: req.query.timezone,
-  });
 
   res.json(schedule);
 };
@@ -306,17 +300,16 @@ export const autoGenerateSchedule = async (req, res) => {
       where: {
         [Op.or]: [
           { createBy: req.user.id },
-          Sequelize.where(
-            Sequelize.fn(
-              "JSON_CONTAINS",
-              Sequelize.col("assignees"),
-              Sequelize.literal(`'"${req.user.id}"'`),
-            ),
-            1,
-          ),
+          { "$assigneeLinks.userId$": req.user.id },
         ],
         done: false,
       },
+      include: [{
+        model: GroupTaskAssignee,
+        as: "assigneeLinks",
+        attributes: [],
+        required: false,
+      }],
       order: [["dueDate", "ASC"]],
     }),
     UserAvailability.findAll({ where: { userId: req.user.id } }),

@@ -24,6 +24,7 @@ const connectDB = async () => {
     await sequelize.authenticate();
     console.log("Connected via Sequelize");
     await sequelize.sync();
+    await backfillGroupTaskAssignees();
     console.log("Models synced with database");
   } catch (error) {
     console.error(`DB error: ${error.message}`);
@@ -41,6 +42,7 @@ import ScheduleModel from "./Schedule.js";
 import StudyGroupModel from "./StudyGroup.js";
 import GroupMemberModel from "./GroupMember.js";
 import GroupTaskModel from "./GroupTask.js";
+import GroupTaskAssigneeModel from "./GroupTaskAssignee.js";
 import NotificationModel from "./Notifications.js";
 import GroupMessageModel from "./GroupMessage.js";
 import UserAvailabilityModel from "./UserAvailability.js";
@@ -51,6 +53,7 @@ const Schedule = ScheduleModel(sequelize, DataTypes);
 const StudyGroup = StudyGroupModel(sequelize, DataTypes);
 const GroupMember = GroupMemberModel(sequelize, DataTypes);
 const GroupTask = GroupTaskModel(sequelize, DataTypes);
+const GroupTaskAssignee = GroupTaskAssigneeModel(sequelize, DataTypes);
 const Notifications = NotificationModel(sequelize, DataTypes);
 const GroupMessage = GroupMessageModel(sequelize, DataTypes);
 const UserAvailability = UserAvailabilityModel(sequelize, DataTypes);
@@ -82,6 +85,25 @@ Task.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
 StudyGroup.hasMany(GroupTask, { foreignKey: "groupId", onDelete: "CASCADE" });
 GroupTask.belongsTo(StudyGroup, { foreignKey: "groupId", onDelete: "CASCADE" });
 
+GroupTask.hasMany(GroupTaskAssignee, {
+  as: "assigneeLinks",
+  foreignKey: "groupTaskId",
+  onDelete: "CASCADE",
+});
+GroupTaskAssignee.belongsTo(GroupTask, {
+  foreignKey: "groupTaskId",
+  onDelete: "CASCADE",
+});
+User.hasMany(GroupTaskAssignee, {
+  as: "groupTaskAssignments",
+  foreignKey: "userId",
+  onDelete: "CASCADE",
+});
+GroupTaskAssignee.belongsTo(User, {
+  foreignKey: "userId",
+  onDelete: "CASCADE",
+});
+
 StudyGroup.hasMany(GroupMessage, {
   foreignKey: "groupId",
   onDelete: "CASCADE",
@@ -107,6 +129,38 @@ UserAvailability.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 Task.hasMany(Notifications, { foreignKey: "taskId", onDelete: "CASCADE" });
 Notifications.belongsTo(Task, { foreignKey: "taskId", onDelete: "CASCADE" });
 
+const parseLegacyAssignees = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+const backfillGroupTaskAssignees = async () => {
+  const tasks = await GroupTask.findAll({ attributes: ["id", "assignees"] });
+  const candidates = tasks.flatMap((task) =>
+    [...new Set(parseLegacyAssignees(task.assignees).filter(Boolean))].map((userId) => ({
+      groupTaskId: task.id,
+      userId,
+    })),
+  );
+  if (!candidates.length) return;
+
+  const users = await User.findAll({
+    where: { id: [...new Set(candidates.map((candidate) => candidate.userId))] },
+    attributes: ["id"],
+  });
+  const validUserIds = new Set(users.map((user) => user.id));
+  const rows = candidates.filter((candidate) => validUserIds.has(candidate.userId));
+  if (rows.length) {
+    await GroupTaskAssignee.bulkCreate(rows, { ignoreDuplicates: true });
+  }
+};
+
 export {
   sequelize,
   connectDB,
@@ -117,6 +171,7 @@ export {
   StudyGroup,
   GroupMember,
   GroupTask,
+  GroupTaskAssignee,
   GroupMessage,
   Notifications,
   UserAvailability,

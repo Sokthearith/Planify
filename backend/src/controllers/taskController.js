@@ -1,7 +1,10 @@
 import { Task } from "../models/index.js";
 import createNotification from "../utils/createNotification.js";
 import { emitToUser } from "../utils/realtime.js";
-import { syncUserSchedulesWithTaskDeadlines } from "../utils/scheduleSync.js";
+import {
+  removeTaskDeadlineForUser,
+  upsertTaskDeadlineForUser,
+} from "../utils/scheduleSync.js";
 
 const allowedPriorities = ["high", "medium", "low"];
 const allowedStatuses = ["pending", "in_progress", "done"];
@@ -80,7 +83,7 @@ export const createTask = async (req, res) => {
     type: "task",
     message: `Task created: ${task.title}`,
   });
-  await syncUserSchedulesWithTaskDeadlines(req.user.id);
+  await upsertTaskDeadlineForUser(req.user.id, task);
   emitToUser(req.user.id, "task:created", task);
 
   res.status(201).json(task);
@@ -164,8 +167,14 @@ export const updateTask = async (req, res) => {
   }
 
   await Promise.all(notifications);
-  if (taskData.deadline !== undefined || taskData.title !== undefined || taskData.status !== undefined) {
-    await syncUserSchedulesWithTaskDeadlines(req.user.id);
+  if (
+    taskData.deadline !== undefined ||
+    taskData.title !== undefined ||
+    taskData.subject !== undefined ||
+    taskData.priority !== undefined ||
+    taskData.status !== undefined
+  ) {
+    await upsertTaskDeadlineForUser(req.user.id, task);
   }
   emitToUser(req.user.id, "task:updated", task);
   res.json(task);
@@ -176,7 +185,7 @@ export const deleteTask = async (req, res) => {
   if (!task) return res.status(404).json({ message: "Task Not Found" });
 
   await task.destroy();
-  await syncUserSchedulesWithTaskDeadlines(req.user.id);
+  await removeTaskDeadlineForUser(req.user.id, req.params.id);
   emitToUser(req.user.id, "task:deleted", { id: req.params.id });
   res.json({ message: "Task deleted" });
 };

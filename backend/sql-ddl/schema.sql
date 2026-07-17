@@ -89,6 +89,16 @@ CREATE TABLE IF NOT EXISTS `GroupTask` (
   CONSTRAINT `GroupTask_createBy_fk` FOREIGN KEY (`createBy`) REFERENCES `User` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS `GroupTaskAssignee` (
+  `groupTaskId` CHAR(36) NOT NULL,
+  `userId` CHAR(36) NOT NULL,
+  `assignedAt` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`groupTaskId`, `userId`),
+  INDEX `GroupTaskAssignee_userId_groupTaskId` (`userId`, `groupTaskId`),
+  CONSTRAINT `GroupTaskAssignee_groupTaskId_fk` FOREIGN KEY (`groupTaskId`) REFERENCES `GroupTask` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `GroupTaskAssignee_userId_fk` FOREIGN KEY (`userId`) REFERENCES `User` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `GroupMessage` (
   `id` CHAR(36) NOT NULL,
   `groupId` CHAR(36) NOT NULL,

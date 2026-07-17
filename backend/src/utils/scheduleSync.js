@@ -1,6 +1,7 @@
 import {
   GroupMember,
   GroupTask,
+  GroupTaskAssignee,
   Schedule,
   StudyGroup,
   Task,
@@ -84,18 +85,6 @@ const deadlineEntryForTask = (task, entries, timezone, rows = []) => {
   };
 };
 
-const parseAssignees = (value) => {
-  if (Array.isArray(value)) return value;
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      return [];
-    }
-  }
-  return [];
-};
 
 const deadlineEntryForGroupTask = (task, group, entries, timezone, rows = []) => {
   const date = dateKeyInTimezone(task.dueDate, timezone);
@@ -157,12 +146,21 @@ export const syncTaskDeadlinesForSchedule = async (schedule, options = {}) => {
   const groupTasks = groupIds.length
     ? await GroupTask.findAll({
         where: { groupId: groupIds },
-        include: [{ model: StudyGroup }],
+        include: [
+          { model: StudyGroup },
+          {
+            model: GroupTaskAssignee,
+            as: "assigneeLinks",
+            where: { userId: schedule.userId },
+            attributes: [],
+            required: true,
+          },
+        ],
         order: [["dueDate", "ASC"]],
       })
     : [];
   const groupTaskEntries = groupTasks
-    .filter((task) => task.dueDate && parseAssignees(task.assignees).includes(schedule.userId))
+    .filter((task) => task.dueDate)
     .map((task) => deadlineEntryForGroupTask(
       task,
       task.StudyGroup,
@@ -182,9 +180,10 @@ export const syncTaskDeadlinesForSchedule = async (schedule, options = {}) => {
   return schedule;
 };
 
-export const syncUserSchedulesWithTaskDeadlines = async (userId, options = {}) => {
+const schedulesForUser = async (userId, options = {}) => {
   let schedules = await Schedule.findAll({ where: { userId } });
-  if (schedules.length === 0) {
+  let created = false;
+  if (schedules.length === 0 && options.createIfMissing !== false) {
     schedules = [
       await Schedule.create({
         userId,
@@ -192,31 +191,123 @@ export const syncUserSchedulesWithTaskDeadlines = async (userId, options = {}) =
         planData: { timezone: options.timezone || DEFAULT_TIMEZONE, entries: [] },
       }),
     ];
+    created = true;
   }
-  const synced = [];
-
-  for (const schedule of schedules) {
-    await syncTaskDeadlinesForSchedule(schedule, options);
-    synced.push(schedule);
-    emitToUser(userId, "schedule:updated", schedule);
-  }
-
-  return synced;
+  return { schedules, created };
 };
 
-export const ensureActiveSchedule = async (userId, timezone = DEFAULT_TIMEZONE) => {
-  let schedule = await Schedule.findOne({ where: { userId, isActive: true } });
-  if (!schedule) {
-    schedule = await Schedule.create({
-      userId,
-      isActive: true,
-      planData: { timezone, entries: [] },
-    });
-  }
-
-  await syncTaskDeadlinesForSchedule(schedule, { timezone });
-  return schedule;
+const mutateUserSchedules = async (userIds, mutator, options = {}) => {
+  const ids = [...new Set((Array.isArray(userIds) ? userIds : [userIds]).filter(Boolean))];
+  await Promise.all(ids.map(async (userId) => {
+    const { schedules, created } = await schedulesForUser(userId, options);
+    await Promise.all(schedules.map(async (schedule) => {
+      const timezone = options.timezone || schedule.planData?.timezone || DEFAULT_TIMEZONE;
+      const planData = normalizePlanData(schedule.planData, timezone);
+      const rows = Array.isArray(planData.rows) ? planData.rows : [];
+      const entries = mutator({
+        entries: planData.entries,
+        planData,
+        rows,
+        schedule,
+        timezone,
+        userId,
+      });
+      await schedule.update({ planData: { ...planData, timezone, entries } });
+      emitToUser(userId, created ? "schedule:created" : "schedule:updated", schedule);
+    }));
+  }));
 };
+
+const replaceEntry = (entries, predicate, nextEntry) => {
+  const withoutEntry = entries.filter((entry) => !predicate(entry));
+  return nextEntry ? [...withoutEntry, nextEntry] : withoutEntry;
+};
+
+export const upsertTaskDeadlineForUser = async (userId, task, options = {}) => {
+  await mutateUserSchedules(userId, ({ entries, rows, timezone }) => {
+    const predicate = (entry) =>
+      entry.sourceType === "task-deadline" && entry.sourceId === task.id;
+    const nextEntry = task.deadline
+      ? deadlineEntryForTask(task, entries, timezone, rows)
+      : null;
+    return replaceEntry(entries, predicate, nextEntry);
+  }, options);
+};
+
+export const removeTaskDeadlineForUser = async (userId, taskId) => {
+  await mutateUserSchedules(userId, ({ entries }) =>
+    entries.filter((entry) =>
+      !(entry.sourceType === "task-deadline" && entry.sourceId === taskId),
+    ), { createIfMissing: false });
+};
+
+export const upsertGroupTaskDeadlineForUsers = async (
+  userIds,
+  task,
+  group,
+  options = {},
+) => {
+  const sourceId = `group-task:${task.id}`;
+  await mutateUserSchedules(userIds, ({ entries, rows, timezone }) => {
+    const predicate = (entry) =>
+      entry.sourceType === "group-task-deadline" && entry.sourceId === sourceId;
+    const nextEntry = task.dueDate
+      ? deadlineEntryForGroupTask(task, group, entries, timezone, rows)
+      : null;
+    return replaceEntry(entries, predicate, nextEntry);
+  }, options);
+};
+
+export const removeGroupTaskDeadlineForUsers = async (userIds, taskId) => {
+  const sourceId = `group-task:${taskId}`;
+  await mutateUserSchedules(userIds, ({ entries }) =>
+    entries.filter((entry) =>
+      !(entry.sourceType === "group-task-deadline" && entry.sourceId === sourceId),
+    ), { createIfMissing: false });
+};
+
+export const removeGroupDeadlinesForUsers = async (userIds, groupId) => {
+  await mutateUserSchedules(userIds, ({ entries }) =>
+    entries.filter((entry) =>
+      !(entry.sourceType === "group-task-deadline" && entry.groupId === groupId),
+    ), { createIfMissing: false });
+};
+
+export const syncGroupTaskDeadlinesForUser = async (userId, groupId) => {
+  const tasks = await GroupTask.findAll({
+    where: { groupId },
+    include: [
+      { model: StudyGroup },
+      {
+        model: GroupTaskAssignee,
+        as: "assigneeLinks",
+        where: { userId },
+        attributes: [],
+        required: true,
+      },
+    ],
+  });
+  await mutateUserSchedules(userId, ({ entries, rows, timezone }) => {
+    const retained = entries.filter((entry) =>
+      !(entry.sourceType === "group-task-deadline" && entry.groupId === groupId),
+    );
+    const taskEntries = tasks
+      .filter((task) => task.dueDate)
+      .map((task) => deadlineEntryForGroupTask(
+        task,
+        task.StudyGroup,
+        entries,
+        timezone,
+        rows,
+      ))
+      .filter(Boolean);
+    return [...retained, ...taskEntries];
+  });
+};
+
+
+export const findActiveSchedule = (userId) =>
+  Schedule.findOne({ where: { userId, isActive: true } });
 
 export const normalizeSchedulePayload = (planData, timezone = DEFAULT_TIMEZONE) => {
   const normalized = normalizePlanData(planData, timezone);

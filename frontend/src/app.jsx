@@ -108,6 +108,29 @@ function App() {
       return [mapped, ...withoutExisting];
     };
 
+    const upsertGroupMember = (groupId, rawMember) => {
+      if (!rawMember || rawMember.status === 'pending') return;
+      const member = PlanifyAPI.toUiGroupMember(rawMember);
+      setGroups(arr => arr.map(group => {
+        if (group.id !== groupId) return group;
+        const memberList = [
+          member,
+          ...(group.memberList || []).filter(existing => existing.id !== member.id),
+        ];
+        return { ...group, memberList, members: memberList.map(item => item.initials) };
+      }));
+    };
+
+    const removeGroupFromState = (groupId) => {
+      setGroups(arr => arr.filter(group => group.id !== groupId));
+      setGroupTasks(tasksByGroup => {
+        const next = { ...tasksByGroup };
+        delete next[groupId];
+        return next;
+      });
+      setOpenGroupId(id => id === groupId ? null : id);
+    };
+
     const socket = PlanifyAPI.connectSocket({
       'notification:created': (payload) => {
         setNotifications(arr => upsertById(PlanifyAPI.toUiNotification)(arr, payload));
@@ -148,12 +171,46 @@ function App() {
       'group-task:deleted': ({ groupId, id }) => {
         setGroupTasks(gt => ({ ...gt, [groupId]: (gt[groupId] || []).filter(t => t.id !== id) }));
       },
-      'group:member-added': () => refreshAppData(),
-      'group:member-updated': () => refreshAppData(),
-      'group:member-removed': () => refreshAppData(),
-      'group:created': () => refreshAppData(),
-      'group:updated': () => refreshAppData(),
-      'group:deleted': () => refreshAppData(),
+      'group:member-added': (payload) => {
+        upsertGroupMember(payload.groupId, payload);
+      },
+      'group:member-updated': ({ groupId, member }) => {
+        upsertGroupMember(groupId, member);
+      },
+      'group:member-removed': ({ groupId, memberId, userId }) => {
+        if (userId === currentUser?.id) {
+          removeGroupFromState(groupId);
+          return;
+        }
+        setGroups(arr => arr.map(group => {
+          if (group.id !== groupId) return group;
+          const memberList = (group.memberList || []).filter(member =>
+            member.memberId !== memberId && member.id !== userId,
+          );
+          return { ...group, memberList, members: memberList.map(member => member.initials) };
+        }));
+      },
+      'group:created': (payload) => {
+        const mapped = PlanifyAPI.toUiGroup(payload, currentUser);
+        setGroups(arr => upsertItem(arr, mapped));
+        setGroupTasks(tasksByGroup => ({
+          ...tasksByGroup,
+          [mapped.id]: tasksByGroup[mapped.id] || [],
+        }));
+      },
+      'group:updated': (payload) => {
+        setGroups(arr => arr.map(group => {
+          if (group.id !== payload.id) return group;
+          const subject = payload.subject || 'General';
+          return {
+            ...group,
+            title: payload.name,
+            subject,
+            mark: subject.slice(0, 2).toUpperCase(),
+          };
+        }));
+      },
+      'group:deleted': ({ id }) => removeGroupFromState(id),
       'schedule:created': (payload) => setActiveSchedule(PlanifyAPI.toUiSchedule(payload)),
       'schedule:updated': (payload) => setActiveSchedule(PlanifyAPI.toUiSchedule(payload)),
       'schedule:deleted': ({ id }) => setActiveSchedule(s => s?.id === id ? null : s),
@@ -203,7 +260,6 @@ function App() {
     try {
       const saved = await PlanifyAPI.updateTask(id, { ...task, done: !task.done });
       setTasks(arr => arr.map(t => t.id === id ? saved : t));
-      await refreshSchedule();
     } catch (e) {
       setTasks(arr => arr.map(t => t.id === id ? task : t));
       notify(e.message || 'Could not update task');
@@ -224,7 +280,6 @@ function App() {
         ...gt,
         [gid]: (gt[gid] || []).map(t => t.id === id ? saved : t),
       }));
-      await refreshSchedule();
     } catch (e) {
       setGroupTasks(gt => ({
         ...gt,
@@ -238,7 +293,6 @@ function App() {
     setTasks(arr => arr.filter(t => t.id !== id));
     try {
       await PlanifyAPI.deleteTask(id);
-      await refreshSchedule();
       notify('Task deleted');
     } catch (e) {
       setTasks(previous);
@@ -250,7 +304,6 @@ function App() {
     setGroupTasks(gt => ({ ...gt, [gid]: previous.filter(t => t.id !== id) }));
     try {
       await PlanifyAPI.deleteGroupTask(gid, id);
-      await refreshSchedule();
       notify('Task deleted');
     } catch (e) {
       setGroupTasks(gt => ({ ...gt, [gid]: previous }));
@@ -277,9 +330,10 @@ function App() {
     });
   };
   const saveTaskDeadlineTime = async (task, time) => {
-    if (!time || !activeSchedule) return;
+    if (!time) return;
     try {
       const latest = await PlanifyAPI.getActiveSchedule();
+      if (!latest) return;
       const entries = latest.planData.entries.map(entry => (
         entry.sourceType === 'task-deadline' && entry.sourceId === task.id
           ? { ...entry, time, manualTime: true }
@@ -291,18 +345,11 @@ function App() {
       notify(e.message || 'Task added, but schedule time could not be customized');
     }
   };
-  const refreshSchedule = async () => {
-    try {
-      const s = await PlanifyAPI.getActiveSchedule();
-      setActiveSchedule(s);
-    } catch (e) {}
-  };
 
   const editPersonalTask = async (id, data) => {
     try {
       const saved = await PlanifyAPI.updateTask(id, data);
       setTasks(arr => arr.map(t => t.id === id ? saved : t));
-      await refreshSchedule();
       notify('Task updated');
     } catch (e) {
       notify(e.message || 'Could not update task');
@@ -321,7 +368,6 @@ function App() {
       });
       setTasks(arr => upsertItem(arr, task));
       await saveTaskDeadlineTime(task, data.scheduleTime);
-      await refreshSchedule();
       notify('Task added');
     } catch (e) {
       notify(e.message || 'Could not add task');
@@ -341,7 +387,6 @@ function App() {
         assignees: data.assignees,
       }, lookup);
       setGroupTasks(gt => ({ ...gt, [gid]: upsertItem(gt[gid] || [], task) }));
-      await refreshSchedule();
       notify('Task added to group');
     } catch (e) {
       notify(e.message || 'Could not add group task');
@@ -350,12 +395,11 @@ function App() {
   const createGroup = async (data) => {
     try {
       const group = await PlanifyAPI.createGroup(data, currentUser);
-      for (const email of data.invites || []) {
-        try { await PlanifyAPI.addGroupMember(group.id, email); } catch (e) {}
-      }
-      const loaded = await PlanifyAPI.loadGroupsWithTasks(currentUser);
-      setGroups(loaded.groups);
-      setGroupTasks(loaded.groupTasks);
+      setGroups(arr => upsertItem(arr, group));
+      setGroupTasks(tasksByGroup => ({
+        ...tasksByGroup,
+        [group.id]: tasksByGroup[group.id] || [],
+      }));
       notify('Group created');
     } catch (e) {
       notify(e.message || 'Could not create group');
@@ -387,7 +431,12 @@ function App() {
   const removeGroupMember = async (groupId, memberId) => {
     try {
       await PlanifyAPI.removeGroupMember(groupId, memberId);
-      await refreshAppData();
+      setGroups(arr => arr.map(group => {
+        if (group.id !== groupId) return group;
+        const memberList = (group.memberList || [])
+          .filter(member => member.memberId !== memberId);
+        return { ...group, memberList, members: memberList.map(member => member.initials) };
+      }));
       notify('Member removed');
     } catch (e) {
       notify(e.message || 'Could not remove member');
@@ -402,7 +451,6 @@ function App() {
         ...gt,
         [gid]: (gt[gid] || []).map(t => t.id === id ? saved : t),
       }));
-      await refreshSchedule();
       notify('Task updated');
     } catch (e) {
       notify(e.message || 'Could not update task');
@@ -411,13 +459,24 @@ function App() {
   const acceptInvite = async (notificationId) => {
     try {
       const res = await PlanifyAPI.acceptInvite(notificationId);
-      const loaded = await PlanifyAPI.loadGroupsWithTasks(currentUser);
-      setGroups(loaded.groups);
-      setGroupTasks(loaded.groupTasks);
-      setNotifications(await PlanifyAPI.listNotifications());
+      const group = PlanifyAPI.toUiGroup(res.group, currentUser);
+      const lookup = {};
+      (group.memberList || []).forEach(member => {
+        lookup[member.id] = member.initials;
+      });
+      const tasksForGroup = await PlanifyAPI.listGroupTasks(group.id, lookup);
+      setGroups(arr => upsertItem(arr, group));
+      setGroupTasks(tasksByGroup => ({
+        ...tasksByGroup,
+        [group.id]: tasksForGroup,
+      }));
+      setNotifications(arr => arr.map(notification =>
+        notification.id === notificationId
+          ? { ...notification, inviteStatus: 'accepted', unread: false }
+          : notification,
+      ));
       goto('groups');
       notify('Invite accepted');
-      console.log('Groups after accept:', loaded.groups);
     } catch (e) {
       notify(e.message || 'Could not accept invite');
       console.error('Accept invite error:', e);

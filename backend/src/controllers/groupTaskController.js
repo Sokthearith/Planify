@@ -1,4 +1,9 @@
-import { GroupTask, StudyGroup, GroupMember } from "../models/index.js";
+import {
+  GroupMember,
+  GroupTask,
+  GroupTaskAssignee,
+  StudyGroup,
+} from "../models/index.js";
 
 export const createTask = async (req, res) => {
   const { title, description, dueDate, priority, assignees } = req.body;
@@ -68,11 +73,22 @@ export const getMemberProgress = async (req, res) => {
     where: { groupId: req.params.id },
   });
 
+  const assignments = tasks.length
+    ? await GroupTaskAssignee.findAll({
+        where: { groupTaskId: tasks.map((task) => task.id) },
+        attributes: ["groupTaskId", "userId"],
+      })
+    : [];
+  const taskIdsByUser = assignments.reduce((map, assignment) => {
+    const ids = map.get(assignment.userId) || new Set();
+    ids.add(assignment.groupTaskId);
+    map.set(assignment.userId, ids);
+    return map;
+  }, new Map());
+
   const progress = members.map((m) => {
-    const assigned = tasks.filter((t) => {
-      const list = typeof t.assignees === 'string' ? JSON.parse(t.assignees) : (t.assignees || []);
-      return list.includes(m.userId);
-    });
+    const taskIds = taskIdsByUser.get(m.userId) || new Set();
+    const assigned = tasks.filter((task) => taskIds.has(task.id));
     const done = assigned.filter((t) => t.done).length;
     return {
       userId: m.userId,

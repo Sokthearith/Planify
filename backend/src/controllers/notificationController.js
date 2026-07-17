@@ -3,8 +3,10 @@ import {
   Notifications,
   StudyGroup,
   Task,
+  User,
 } from "../models/index.js";
 import { emitToGroupMembers, emitToUser } from "../utils/realtime.js";
+import { syncGroupTaskDeadlinesForUser } from "../utils/scheduleSync.js";
 
 const allowedTypes = ["task", "group", "group_invite", "ai", "system"];
 
@@ -142,14 +144,33 @@ export const acceptGroupInvite = async (req, res) => {
 
   await notification.update({ inviteStatus: "accepted", isRead: true });
   emitToUser(req.user.id, "notification:updated", notification);
+  await syncGroupTaskDeadlinesForUser(req.user.id, notification.groupId);
+
+  const [member, fullGroup] = await Promise.all([
+    GroupMember.findOne({
+      where: { groupId: notification.groupId, userId: req.user.id },
+      include: [{ model: User, attributes: ["id", "name", "email"] }],
+    }),
+    StudyGroup.findByPk(notification.groupId, {
+      include: [{
+        model: GroupMember,
+        where: { status: "accepted" },
+        required: false,
+        include: [{ model: User, attributes: ["id", "name", "email"] }],
+      }],
+    }),
+  ]);
   await emitToGroupMembers(notification.groupId, "group:member-updated", {
     groupId: notification.groupId,
-    userId: req.user.id,
-    status: "accepted",
+    member,
   });
 
   console.log(`Invite accepted for user ${req.user.id} in group ${notification.groupId}`);
-  res.json({ message: "Group invite accepted", groupId: notification.groupId });
+  res.json({
+    message: "Group invite accepted",
+    groupId: notification.groupId,
+    group: fullGroup,
+  });
 };
 
 export const declineGroupInvite = async (req, res) => {
