@@ -6,7 +6,7 @@
 >
 > Before and after meaningful project work, update this file together with `docs/PLANS.md` and `docs/PROGESS.md` when workflow or project state changes.
 
-**Last Updated:** July 5, 2026
+**Last Updated:** July 18, 2026
 
 ---
 
@@ -213,11 +213,13 @@ Frontend loads notifications
 
 Current events:
 
-* Task created
-* Task completed
-* Deadline changed
+* Personal deadline changed or due within 24 hours
 * Group invitation
-* Deadline reminder
+* Group task created, updated, or deleted (excluding the actor)
+* Group message received (excluding the sender)
+* Assigned group task due within 24 hours
+
+Personal task creation and completion intentionally do not create self-notifications.
 
 ---
 
@@ -253,10 +255,22 @@ MySQL
 
 Current status:
 
-* Backend exists
-* Frontend schedule page exists
-* `frontend/src/api.jsx` does not currently expose schedule CRUD helpers
-* Full frontend-backend integration still needs implementation and testing
+* Backend schedule CRUD and active schedules are wired through `frontend/src/api.jsx`.
+* The first manual edit lazily creates an active schedule.
+* Task and group-task deadlines synchronize into active schedules.
+* AI generation uses saved availability and a deterministic fallback.
+
+---
+
+## Profile, Preferences, Focus, and Progress
+
+```text
+Account profile/preferences -> User record
+Active/completed timer      -> FocusSession
+Task completedAt + focus history -> /api/progress
+```
+
+Avatars are resized in the browser, validated by the backend, and returned with group members and chat senders. Progress ranges are calculated from persisted completion timestamps and focus sessions.
 
 ---
 

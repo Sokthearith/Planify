@@ -110,21 +110,21 @@ function Toasts() {
 }
 
 /* ---- Avatar ---- */
-function Avatar({ initials, size = 28 }) {
+function Avatar({ initials, size = 28, image = '' }) {
   const palette = {
     JW: '#0a0a0a', SC: '#0a0a0a', MR: '#0a0a0a', ED: '#0a0a0a', AL: '#0a0a0a', KP: '#0a0a0a',
   };
   return (
     <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.36, background: palette[initials] || '#0a0a0a' }}>
-      {initials}
+      {image ? <img src={image} alt="" /> : initials}
     </span>
   );
 }
 
-function AvStack({ list, size = 24 }) {
+function AvStack({ list, images = [], size = 24 }) {
   return (
     <span className="av-stack">
-      {list.map(i => <Avatar key={i} initials={i} size={size} />)}
+      {list.map((i, index) => <Avatar key={i + index} initials={i} image={images[index]} size={size} />)}
     </span>
   );
 }

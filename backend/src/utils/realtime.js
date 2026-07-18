@@ -3,9 +3,11 @@ import { Server } from "socket.io";
 import {
   GroupMember,
   GroupMessage,
+  Notifications,
   StudyGroup,
   User,
 } from "../models/index.js";
+import { notificationPreferenceEnabled } from "./userPreferences.js";
 
 let io = null;
 
@@ -42,6 +44,33 @@ export const emitToGroupMembers = async (groupId, event, payload) => {
   memberIds.forEach((userId) => emitToUser(userId, event, payload));
 };
 
+export const notifyGroupMembers = async ({
+  groupId,
+  message,
+  excludeUserId = null,
+  type = "group",
+  category = null,
+}) => {
+  if (!groupId || typeof message !== "string" || !message.trim()) return [];
+  const memberIds = await getAcceptedGroupMemberIds(groupId);
+  const users = await User.findAll({
+    where: { id: memberIds },
+    attributes: ["id", "preferences"],
+  });
+  return Promise.all(users
+    .filter((user) => user.id !== excludeUserId && notificationPreferenceEnabled(user.preferences, category))
+    .map(async (user) => {
+      const notification = await Notifications.create({
+        userId: user.id,
+        groupId,
+        type,
+        message: message.trim(),
+      });
+      emitToUser(user.id, "notification:created", notification);
+      return notification;
+    }));
+};
+
 const getTokenFromHandshake = (socket) => {
   const authToken = socket.handshake.auth?.token;
   if (authToken) return authToken;
@@ -75,6 +104,7 @@ const serializeMessage = (message) => ({
         id: message.sender.id,
         name: message.sender.name,
         email: message.sender.email,
+        avatar: message.sender.avatar || "",
       }
     : null,
 });
@@ -137,10 +167,16 @@ export const initRealtime = (server) => {
           message: text,
         });
         const full = await GroupMessage.findByPk(saved.id, {
-          include: [{ model: User, as: "sender", attributes: ["id", "name", "email"] }],
+          include: [{ model: User, as: "sender", attributes: ["id", "name", "email", "avatar"] }],
         });
         const payload = serializeMessage(full);
         emitToGroup(groupId, "group-chat:message", payload);
+        await notifyGroupMembers({
+          groupId,
+          excludeUserId: userId,
+          message: `${socket.user.name} sent a message in ${group.name}`,
+          category: "groupMessages",
+        });
         ack?.({ ok: true, message: payload });
       } catch (error) {
         ack?.({ ok: false, message: error.message });

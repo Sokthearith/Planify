@@ -17,7 +17,7 @@ The project currently combines a Vite React frontend with an Express and MySQL b
 
 ## Current Status
 
-Planify is under active development.
+Planify is under active development. The main user journeys are connected to the backend and realtime server.
 
 Implemented and wired through the frontend API adapter:
 
@@ -27,21 +27,20 @@ Implemented and wired through the frontend API adapter:
 * Adding group members
 * Group task CRUD
 * Notification loading, read state, and deletion
-* Gemini-assisted schedule generation with validated structured output and local fallback
+* AI-assisted schedule generation with validated structured output and local fallback
+* Realtime task, group, schedule, notification, profile, and chat updates
+* Account-backed profile, avatar, subjects, and preferences
+* Persistent Pomodoro sessions and historical progress analytics
 
-Implemented on the backend and still needing frontend verification:
+Verification support:
 
-* Schedule CRUD through `/api/schedules`
-* Full group invitation flows
-* Progress data persistence
-* Profile persistence
-* Settings persistence
+* Database-backed API integration tests (requires an isolated test database)
+* Playwright browser tests for core frontend journeys
 
 Not currently implemented:
 
-* Automated tests
 * Production deployment configuration
-* WebSocket real-time updates
+* External browser push, calendar sync, email digests, and public profiles
 
 ## Tech Stack
 
@@ -120,6 +119,8 @@ The backend currently defines these main Sequelize models:
 * GroupMember
 * GroupTask
 * Notifications
+* FocusSession
+* UserAvailability
 
 ## Setup
 
@@ -173,6 +174,14 @@ Start the backend:
 
 ```bash
 npm run dev
+```
+
+Existing installations apply additive migrations during startup. They can also
+be applied explicitly before starting the server:
+
+```bash
+npm run migrate
+npm start
 ```
 
 The API will run at:
@@ -246,12 +255,28 @@ Project docs live in `docs/`:
 
 Near-term priorities:
 
-* Verify all frontend-backend integration paths
-* Wire the schedule page through `frontend/src/api.jsx`
-* Verify group invite acceptance and rejection from the UI
-* Decide how profile, settings, progress, and AI schedule data should persist
-* Add automated backend tests
 * Prepare production deployment configuration
+* Expand automated coverage for external AI and multi-client realtime failures
+* Add external notification and calendar integrations when providers are selected
+
+## Tests
+
+Run frontend build and browser journeys:
+
+```bash
+cd frontend
+npm run build
+npm run test:e2e
+```
+
+Run backend tests:
+
+```bash
+cd backend
+npm test
+```
+
+The API integration cases are skipped unless `TEST_DB_NAME` is configured. Use an isolated database and optional `TEST_DB_USER`, `TEST_DB_PASSWORD`, `TEST_DB_HOST`, and `TEST_DB_PORT` values; never point these tests at production data.
 
 ## Contributors
 

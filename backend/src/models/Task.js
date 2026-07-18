@@ -23,6 +23,7 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.ENUM("pending", "in_progress", "done"),
         defaultValue: "pending",
       },
+      completedAt: { type: DataTypes.DATE, allowNull: true },
       createAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     },
     {

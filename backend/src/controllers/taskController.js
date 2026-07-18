@@ -73,16 +73,11 @@ export const createTask = async (req, res) => {
 
   const task = await Task.create({
     ...taskData,
+    completedAt: taskData.status === "done" ? new Date() : null,
     userId: req.user.id,
     groupId: null,
   });
 
-  await createNotification({
-    userId: req.user.id,
-    taskId: task.id,
-    type: "task",
-    message: `Task created: ${task.title}`,
-  });
   await upsertTaskDeadlineForUser(req.user.id, task);
   emitToUser(req.user.id, "task:created", task);
 
@@ -134,8 +129,11 @@ export const updateTask = async (req, res) => {
   if (error) return res.status(400).json(error);
 
   const previousDeadline = task.deadline ? task.deadline.toISOString() : null;
-  const previousStatus = task.status;
-
+  if (taskData.status !== undefined) {
+    taskData.completedAt = taskData.status === "done"
+      ? (task.completedAt || new Date())
+      : null;
+  }
   await task.update(taskData);
 
   const notifications = [];
@@ -150,20 +148,10 @@ export const updateTask = async (req, res) => {
           taskId: task.id,
           type: "task",
           message: `Deadline updated for: ${task.title}`,
+          category: "dueReminders",
         }),
       );
     }
-  }
-
-  if (taskData.status === "done" && previousStatus !== "done") {
-    notifications.push(
-      createNotification({
-        userId: req.user.id,
-        taskId: task.id,
-        type: "task",
-        message: `Task completed: ${task.title}`,
-      }),
-    );
   }
 
   await Promise.all(notifications);

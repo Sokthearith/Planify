@@ -52,7 +52,7 @@ function LandingPage({ onSignIn, onGetStarted, auth, onOpenApp, onSignOut }) {
                   style={{ width: 36, height: 36, fontSize: 11, cursor: 'pointer', border: 'none' }}
                   onClick={() => setMenuOpen(o => !o)}
                   aria-label="Account menu"
-                >{auth.initials}</button>
+                >{auth.avatar ? <img src={auth.avatar} alt="" /> : auth.initials}</button>
                 {menuOpen ? (
                   <div className="land-menu" onMouseLeave={() => setMenuOpen(false)}>
                     <div className="land-menu-head">
@@ -198,9 +198,9 @@ function LandingPage({ onSignIn, onGetStarted, auth, onOpenApp, onSignOut }) {
       <footer className="foot">
         <span>© 2026 Planify. All rights reserved.</span>
         <div className="links">
-          <a href="#">Privacy</a>
-          <a href="#">Terms</a>
-          <a href="#">Contact</a>
+          <span>Privacy</span>
+          <span>Terms</span>
+          <span>Contact</span>
         </div>
       </footer>
     </div>
@@ -507,7 +507,7 @@ function CreateAccountPage({ onBack, onSubmit, onSwitchToSignIn }) {
 
           <label className="check-inline" style={{ fontSize: 13, color: 'var(--muted)' }}>
             <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} />
-            <span>I agree to the <button type="button" className="link" style={{ display: 'inline' }}>Terms</button> and <button type="button" className="link" style={{ display: 'inline' }}>Privacy Policy</button></span>
+            <span>I agree to the Terms and Privacy Policy</span>
           </label>
 
           <button type="submit" className="big-btn" disabled={!valid || loading} style={!valid || loading ? { background: 'var(--muted-2)', borderColor: 'var(--muted-2)', cursor: 'not-allowed' } : null}>

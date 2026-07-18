@@ -127,11 +127,24 @@ const IconTrash = ({ size }) => (
     <path d="M10 11 V17 M14 11 V17" />
   </I>
 );
+const IconFullscreen = ({ size, exit = false }) => (
+  <I size={size}>
+    {exit ? (
+      <>
+        <path d="M9 3 V9 H3 M15 3 V9 H21 M9 21 V15 H3 M15 21 V15 H21" />
+      </>
+    ) : (
+      <>
+        <path d="M9 3 H3 V9 M15 3 H21 V9 M9 21 H3 V15 M15 21 H21 V15" />
+      </>
+    )}
+  </I>
+);
 
 Object.assign(window, {
   IconHome, IconTasks, IconGroups, IconCal, IconProgress, IconBell, IconUser, IconGear,
   IconBack, IconPlus, IconClose, IconArrow, IconCheck, IconSearch, IconAddUser, IconSpark, IconClock,
-  IconEye, IconEyeOff, IconLogout, IconChat, IconSend, IconTrash
+  IconEye, IconEyeOff, IconLogout, IconChat, IconSend, IconTrash, IconFullscreen
 });
 
 export {
@@ -158,4 +171,5 @@ export {
   IconChat,
   IconSend,
   IconTrash,
+  IconFullscreen,
 };

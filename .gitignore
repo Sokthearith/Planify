@@ -6,7 +6,8 @@ backend/node_modules/
 .env.*
 backend/.env
 backend/.lazy.lua
-backend/test
+frontend/test-results/
+frontend/playwright-report/
 frontend/.env
 *.log
 vite-dev.log

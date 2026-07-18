@@ -26,6 +26,8 @@ export default (sequelize, DataTypes) => {
         defaultValue: "medium",
       },
       done: { type: DataTypes.BOOLEAN, defaultValue: false },
+      completedAt: { type: DataTypes.DATE, allowNull: true },
+      estimatedHours: { type: DataTypes.FLOAT, allowNull: true },
       assignees: { type: DataTypes.JSON, defaultValue: [] },
       createAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     },

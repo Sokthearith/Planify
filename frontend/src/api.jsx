@@ -18,11 +18,19 @@ const PlanifyAPI = (() => {
     };
     if (token) headers.Authorization = 'Bearer ' + token;
 
-    const res = await fetch(API_BASE + path, {
-      ...options,
-      headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    });
+    let res;
+    try {
+      res = await fetch(API_BASE + path, {
+        ...options,
+        headers,
+        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      });
+    } catch (error) {
+      const connectionError = new Error('Cannot reach the Planify server. Start the backend and try again.');
+      connectionError.status = 0;
+      connectionError.cause = error;
+      throw connectionError;
+    }
 
     const text = await res.text();
     let data = null;
@@ -32,7 +40,10 @@ const PlanifyAPI = (() => {
 
     if (!res.ok) {
       const message = data?.message || data?.errors?.join(', ') || 'Request failed';
-      throw new Error(message);
+      const requestError = new Error(message);
+      requestError.status = res.status;
+      requestError.data = data;
+      throw requestError;
     }
 
     return data;
@@ -102,7 +113,8 @@ const PlanifyAPI = (() => {
       assigneeIds: task.assignees || [],
       rawDeadline,
       status: task.status || (done ? 'done' : 'pending'),
-    estimatedHours: task.estimatedHours != null && task.estimatedHours !== '' ? Number(task.estimatedHours) : null,
+      completedAt: task.completedAt || null,
+      estimatedHours: task.estimatedHours != null && task.estimatedHours !== '' ? Number(task.estimatedHours) : null,
       ...due,
     };
   };
@@ -131,6 +143,7 @@ const PlanifyAPI = (() => {
     name: member.User?.name || member.User?.email || '',
     initials: initials(member.User?.name || member.User?.email, 'U'),
     role: member.role || 'member',
+    avatar: member.User?.avatar || '',
   });
 
   const toUiGroup = (group, user) => {
@@ -174,6 +187,7 @@ const PlanifyAPI = (() => {
     sentAt: message.sentAt,
     senderName: message.sender?.name || message.sender?.email || 'Member',
     senderInitials: initials(message.sender?.name || message.sender?.email, 'U'),
+    senderAvatar: message.sender?.avatar || '',
   });
 
   const toUiSchedule = (schedule) => {
@@ -262,6 +276,16 @@ const PlanifyAPI = (() => {
       localStorage.setItem(USER_KEY, JSON.stringify(data.data));
       return data.data;
     },
+    updateMe: async (profile) => {
+      const data = await request('/auth/me', { method: 'PATCH', body: profile });
+      localStorage.setItem(USER_KEY, JSON.stringify(data.data));
+      return data.data;
+    },
+    getPreferences: async () => request('/auth/me/preferences'),
+    updatePreferences: async (updates) => request('/auth/me/preferences', {
+      method: 'PATCH',
+      body: updates,
+    }),
     logout: async () => {
       try { await request('/auth/logout', { method: 'POST' }); } catch (e) {}
       clearAuth();
@@ -315,6 +339,14 @@ const PlanifyAPI = (() => {
     acceptInvite: async (notificationId) => request('/notifications/' + notificationId + '/accept', { method: 'PATCH' }),
     declineInvite: async (notificationId) => request('/notifications/' + notificationId + '/decline', { method: 'PATCH' }),
     getActiveSchedule: async () => toUiSchedule(await request('/schedules/active?timezone=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone))),
+    createSchedule: async (planData = { entries: [] }) => toUiSchedule(await request('/schedules', {
+      method: 'POST',
+      body: {
+        planData,
+        isActive: true,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+    })),
     updateSchedule: async (id, planData) => toUiSchedule(await request('/schedules/' + id, {
       method: 'PUT',
       body: {
@@ -336,6 +368,15 @@ const PlanifyAPI = (() => {
     getAvailability: async () => request('/availability'),
     setAvailability: async (slots) => request('/availability', { method: 'PUT', body: { slots } }),
     deleteAvailability: async () => request('/availability', { method: 'DELETE' }),
+    getCurrentFocusSession: async () => request('/focus-sessions/current'),
+    startFocusSession: async (kind, plannedSeconds) => request('/focus-sessions', {
+      method: 'POST', body: { kind, plannedSeconds },
+    }),
+    updateFocusSession: async (id, action) => request('/focus-sessions/' + id, {
+      method: 'PATCH', body: { action },
+    }),
+    cancelFocusSession: async (id) => request('/focus-sessions/' + id, { method: 'DELETE' }),
+    getProgress: async (range = 'month') => request('/progress?range=' + encodeURIComponent(range) + '&timezone=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)),
     connectSocket: (handlers = {}) => {
       const token = getToken();
       if (!token) return null;

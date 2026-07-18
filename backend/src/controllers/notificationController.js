@@ -9,6 +9,10 @@ import { emitToGroupMembers, emitToUser } from "../utils/realtime.js";
 import { syncGroupTaskDeadlinesForUser } from "../utils/scheduleSync.js";
 
 const allowedTypes = ["task", "group", "group_invite", "ai", "system"];
+const isExcludedPersonalTaskNotification = (notification) => (
+  notification.type === "task" &&
+  /^(Task created|Task completed):/.test(notification.message || "")
+);
 
 const getNotificationForUser = async (notificationId, userId) => {
   return Notifications.findOne({
@@ -81,7 +85,7 @@ export const getMyNotifications = async (req, res) => {
     order: [["sentAt", "DESC"]],
   });
 
-  res.json(notifications);
+  res.json(notifications.filter(notification => !isExcludedPersonalTaskNotification(notification)));
 };
 
 export const markNotificationRead = async (req, res) => {
@@ -101,6 +105,7 @@ export const markAllNotificationsRead = async (req, res) => {
     { where: { userId: req.user.id, isRead: false } },
   );
 
+  emitToUser(req.user.id, "notifications:read-all", {});
   res.json({ message: "Notifications marked as read", updatedCount });
 };
 
@@ -149,14 +154,14 @@ export const acceptGroupInvite = async (req, res) => {
   const [member, fullGroup] = await Promise.all([
     GroupMember.findOne({
       where: { groupId: notification.groupId, userId: req.user.id },
-      include: [{ model: User, attributes: ["id", "name", "email"] }],
+      include: [{ model: User, attributes: ["id", "name", "email", "avatar"] }],
     }),
     StudyGroup.findByPk(notification.groupId, {
       include: [{
         model: GroupMember,
         where: { status: "accepted" },
         required: false,
-        include: [{ model: User, attributes: ["id", "name", "email"] }],
+        include: [{ model: User, attributes: ["id", "name", "email", "avatar"] }],
       }],
     }),
   ]);

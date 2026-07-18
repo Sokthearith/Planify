@@ -20,6 +20,7 @@ export default (sequelize, DataTypes) => {
         allowNull: true,
       },
       message: { type: DataTypes.STRING, allowNull: false },
+      dedupeKey: { type: DataTypes.STRING, allowNull: true },
       isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
       sentAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     },
@@ -33,6 +34,11 @@ export default (sequelize, DataTypes) => {
         { fields: ["isRead"] },
         { fields: ["inviteStatus"] },
         { fields: ["sentAt"] },
+        {
+          name: "notifications_user_dedupe",
+          unique: true,
+          fields: ["userId", "dedupeKey"],
+        },
       ],
     },
   );

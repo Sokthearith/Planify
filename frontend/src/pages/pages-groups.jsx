@@ -29,7 +29,7 @@ function GroupsPage({ groups, onOpen, onCreate }) {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <AvStack list={g.members} />
+              <AvStack list={g.members} images={g.memberImages} />
               <span className="t-eyebrow">{g.members.length} members</span>
             </div>
 
@@ -83,8 +83,10 @@ function GroupDetailPage({ user, group, tasks, messages = [], chatHistoryLoaded 
       });
       const done = assigned.filter(t => t.done).length;
       return {
+        id: m.id,
         n: m.name,
         i: m.initials,
+        avatar: m.avatar,
         val: assigned.length > 0 ? done / assigned.length : 0,
       };
     });
@@ -213,7 +215,11 @@ function GroupDetailPage({ user, group, tasks, messages = [], chatHistoryLoaded 
                   {t.assignees && t.assignees.length > 0 ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
                       <span className="t-eyebrow">Assigned</span>
-                      <AvStack list={t.assignees} size={22} />
+                      <AvStack
+                        list={t.assignees}
+                        images={(t.assigneeIds || []).map(id => teamMembers.find(member => member.id === id)?.avatar || '')}
+                        size={22}
+                      />
                     </div>
                   ) : null}
                 </div>
@@ -239,12 +245,12 @@ function GroupDetailPage({ user, group, tasks, messages = [], chatHistoryLoaded 
           <div className="panel">
             <div className="panel-head" style={{ padding: '18px 20px' }}>
               <h3 className="t-h3">Team</h3>
-              <button className="btn iconbtn" style={{ width: 32, height: 32 }}><IconAddUser size={12} /></button>
+              <button className="btn iconbtn" style={{ width: 32, height: 32 }} onClick={() => setShowInvite(true)} aria-label="Invite member" title="Invite member"><IconAddUser size={12} /></button>
             </div>
             <div style={{ padding: '8px 20px 20px' }}>
               {teamMembers.map(m => (
                 <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--line)' }}>
-                  <Avatar initials={m.initials} size={32} />
+                  <Avatar initials={m.initials} image={m.avatar} size={32} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</div>
                     <div className="t-eyebrow">{m.role}</div>
@@ -279,7 +285,7 @@ function GroupDetailPage({ user, group, tasks, messages = [], chatHistoryLoaded 
                     const sent = m.sentAt ? new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
                     return (
                       <div key={m.id} className={'chat-message' + (mine ? ' mine' : '')}>
-                        {!mine ? <Avatar initials={m.senderInitials} size={26} /> : null}
+                        {!mine ? <Avatar initials={m.senderInitials} image={m.senderAvatar} size={26} /> : null}
                         <div className="bubble">
                           <div className="chat-meta">
                             <span>{mine ? 'You' : m.senderName}</span>
@@ -317,10 +323,10 @@ function GroupDetailPage({ user, group, tasks, messages = [], chatHistoryLoaded 
             </div>
             <div className="panel-pad" style={{ padding: '4px 20px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {memberProgress.map(m => (
-                <div key={m.i} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Avatar initials={m.i} size={24} />
+                      <Avatar initials={m.i} image={m.avatar} size={24} />
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{m.n}</span>
                     </div>
                     <span className="t-eyebrow">{Math.round(m.val * 100)}%</span>

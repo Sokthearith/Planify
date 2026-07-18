@@ -66,23 +66,27 @@ function isDueToday(task) {
     dueDate.getDate() === today.getDate();
 }
 
-function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, onEditTask, goto }) {
+function HomePage({ user, tasks, focusTimer, progress, aiSuggestions = true, onToggle, onDelete, onAdd, onOpenTask, onEditTask, goto }) {
   const firstName = (user?.username || user?.name || 'Student').trim().split(/\s+/)[0] || 'Student';
   const todayTasks = tasks.filter(t => !t.done && isDueToday(t));
   const openTasks = tasks.filter(t => !t.done);
   const due = todayTasks.length;
   const done = tasks.filter(t => t.done).length;
-  const hours = 0;
+  const focusHours = Math.max(0, Number(focusTimer?.totalSeconds) || 0) / 3600;
+  const hours = focusHours ? Number(focusHours.toFixed(1)) : 0;
   const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
   const nextUp = todayTasks.find(t => t.priority === 'urgent') || todayTasks[0] || openTasks[0];
-  const todayList = (todayTasks.length ? todayTasks : openTasks).slice(0, 5);
+  // Personal tasks are prepended when created, so the newest task is immediately
+  // visible here even when it is not due today.
+  const todayList = openTasks.slice(0, 5);
   const todayLabel = new Date().toLocaleDateString(undefined, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
   });
 
-  const weekActivity = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => ({ d, l: 0 }));
+  const weekActivity = (progress?.buckets?.length ? progress.buckets : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(label => ({ label, rate: 0 })))
+    .map(bucket => ({ d: bucket.label, l: Math.min(4, Math.ceil((bucket.rate || 0) * 4)) }));
 
   return (
     <div className="page">
@@ -125,7 +129,7 @@ function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, onEditTa
         <div className="panel">
           <div className="panel-head">
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-              <h2 className="t-h2">Today</h2>
+              <h2 className="t-h2">Your tasks</h2>
               <span className="t-mut">{todayTasks.length} due today</span>
             </div>
             <button className="btn iconbtn" onClick={onAdd}><IconPlus size={14} /></button>
@@ -136,15 +140,15 @@ function HomePage({ user, tasks, onToggle, onDelete, onAdd, onOpenTask, onEditTa
             ))}
           </div>
           <div style={{ padding: '14px 24px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="t-mut">Showing {todayList.length} of {todayTasks.length || openTasks.length}</span>
+            <span className="t-mut">Showing {todayList.length} of {openTasks.length}</span>
             <button className="btn ghost sm" onClick={() => goto('tasks')}>View all <IconArrow size={12} /></button>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="insight">
-            <div className="eyebrow"><IconSpark size={11} /> AI Insight</div>
-            <div className="body">Add tasks and deadlines to start building a study plan.</div>
+            <div className="eyebrow"><IconSpark size={11} /> {aiSuggestions ? 'AI Insight' : 'Next action'}</div>
+            <div className="body">{nextUp ? `Next: ${nextUp.title}. ${nextUp.due === 'Today' ? 'Make it your next focus session.' : `Due ${nextUp.due.toLowerCase()}.`}` : 'You are all caught up. Add a task when something new comes in.'}</div>
             <button className="cta" onClick={() => goto('schedule')}>Schedule study block <IconArrow size={12} /></button>
           </div>
 

@@ -7,7 +7,7 @@ import {
   User,
 } from "../models/index.js";
 import createNotification from "../utils/createNotification.js";
-import { emitToGroup, emitToGroupMembers, emitToUser } from "../utils/realtime.js";
+import { emitToGroup, emitToGroupMembers, emitToUser, notifyGroupMembers } from "../utils/realtime.js";
 import {
   removeGroupDeadlinesForUsers,
   removeGroupTaskDeadlineForUsers,
@@ -25,7 +25,7 @@ const findGroupMembership = (groupId, userId, status) => {
 
 const pickGroupTaskFields = (body) => {
   const fields = {};
-  ["title", "description", "dueDate", "priority", "assignees", "done"].forEach(
+  ["title", "description", "dueDate", "priority", "estimatedHours", "assignees", "done"].forEach(
     (field) => {
       if (body[field] !== undefined) fields[field] = body[field];
     },
@@ -168,7 +168,7 @@ export const createGroup = async (req, res) => {
         model: GroupMember,
         where: { status: "accepted" },
         required: false,
-        include: [{ model: User, attributes: ["id", "name", "email"] }],
+        include: [{ model: User, attributes: ["id", "name", "email", "avatar"] }],
       },
     ],
   });
@@ -188,7 +188,7 @@ export const getMyGroups = async (req, res) => {
             model: GroupMember,
             where: { status: "accepted" },
             required: false,
-            include: [{ model: User, attributes: ["id", "name", "email"] }],
+            include: [{ model: User, attributes: ["id", "name", "email", "avatar"] }],
           },
         ],
       },
@@ -210,7 +210,7 @@ export const getMyGroupsById = async (req, res) => {
         model: GroupMember,
         where: { status: "accepted" },
         required: false,
-        include: [{ model: User, attributes: ["id", "name", "email"] }],
+        include: [{ model: User, attributes: ["id", "name", "email", "avatar"] }],
       },
     ],
   });
@@ -292,7 +292,7 @@ export const addMember = async (req, res) => {
   });
 
   const full = await GroupMember.findByPk(member.id, {
-    include: [{ model: User, attributes: ["id", "name", "email"] }],
+    include: [{ model: User, attributes: ["id", "name", "email", "avatar"] }],
   });
   await emitToGroupMembers(group.id, "group:member-added", full);
   res.status(201).json(full);
@@ -358,17 +358,18 @@ export const createGroupTask = async (req, res) => {
       description: taskData.description,
       dueDate: taskData.dueDate,
       priority: taskData.priority,
+      estimatedHours: taskData.estimatedHours,
       assignees: assigneeIds,
     }, { transaction });
     await replaceTaskAssignees(created.id, assigneeIds, transaction);
     return created;
   });
 
-  await createNotification({
-    userId: req.user.id,
+  await notifyGroupMembers({
     groupId: group.id,
-    type: "group",
-    message: `Group task created: ${task.title}`,
+    excludeUserId: req.user.id,
+    message: `${req.user.name} created the group task “${task.title}” in ${group.name}`,
+    category: "groupTaskUpdates",
   });
 
   await upsertGroupTaskDeadlineForUsers(assigneeIds, task, group);
@@ -409,6 +410,9 @@ export const updateGroupTask = async (req, res) => {
     ? normalizeAssignees(taskData.assignees)
     : previousAssignees;
   if (taskData.assignees !== undefined) taskData.assignees = nextAssignees;
+  if (taskData.done !== undefined) {
+    taskData.completedAt = taskData.done ? (task.completedAt || new Date()) : null;
+  }
 
   await sequelize.transaction(async (transaction) => {
     await task.update(taskData, { transaction });
@@ -417,6 +421,12 @@ export const updateGroupTask = async (req, res) => {
     }
   });
   await syncGroupTaskSchedules(task, group, previousAssignees, nextAssignees);
+  await notifyGroupMembers({
+    groupId: group.id,
+    excludeUserId: req.user.id,
+    message: `${req.user.name} updated the group task “${task.title}” in ${group.name}`,
+    category: "groupTaskUpdates",
+  });
   await emitToGroupMembers(group.id, "group-task:updated", task);
   res.json(task);
 };
@@ -440,8 +450,15 @@ export const deleteGroupTask = async (req, res) => {
   if (!task) return res.status(404).json({ message: "Task Not Found" });
 
   const previousAssignees = await getTaskAssigneeIds(task);
+  const taskTitle = task.title;
   await task.destroy();
   await removeGroupTaskDeadlineForUsers(previousAssignees, task.id);
+  await notifyGroupMembers({
+    groupId: group.id,
+    excludeUserId: req.user.id,
+    message: `${req.user.name} deleted the group task “${taskTitle}” in ${group.name}`,
+    category: "groupTaskUpdates",
+  });
   await emitToGroupMembers(group.id, "group-task:deleted", {
     groupId: group.id,
     id: req.params.taskId,
@@ -466,7 +483,7 @@ export const acceptInvite = async (req, res) => {
   await membership.update({ status: "accepted" });
   await syncGroupTaskDeadlinesForUser(req.user.id, req.params.id);
   const full = await GroupMember.findByPk(membership.id, {
-    include: [{ model: User, attributes: ["id", "name", "email"] }],
+    include: [{ model: User, attributes: ["id", "name", "email", "avatar"] }],
   });
   await emitToGroupMembers(req.params.id, "group:member-updated", {
     groupId: req.params.id,

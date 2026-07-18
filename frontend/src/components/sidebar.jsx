@@ -68,10 +68,12 @@ function Sidebar({ user, current, onNav, onProfile, notifCount, onGoLanding }) {
         aria-label="Open profile"
         title="Open profile"
       >
-        <span className="avatar">{initials}</span>
+        <span className="avatar">
+          {user?.avatar ? <img src={user.avatar} alt="" /> : initials}
+        </span>
         <div>
           <div className="name">{name}</div>
-          <div className="sub">First Year · Engineering</div>
+          <div className="sub">{user?.year || 'First Year'} · {user?.major || 'Engineering'}</div>
           <div className="profile-link">View profile</div>
         </div>
       </button>

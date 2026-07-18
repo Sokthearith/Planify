@@ -2,7 +2,7 @@
 
 import React from 'react';
 import PlanifyAPI from './api.jsx';
-import { SUBJECTS, Toasts, notify, usePersistentState } from './data.jsx';
+import { SUBJECTS, Toasts, notify } from './data.jsx';
 import {
   TweakColor,
   TweakRadio,
@@ -34,6 +34,33 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "showInsightCard": true
 }/*EDITMODE-END*/;
 
+const DEFAULT_PREFERENCES = {
+  inAppNotifications: true, dueReminders: true, groupTaskUpdates: true,
+  groupMessages: true, aiSuggestions: true, focusMinutes: 25, breakMinutes: 5,
+};
+
+const timerFromSession = (session, preferences = DEFAULT_PREFERENCES) => {
+  const mode = session?.kind || 'focus';
+  const fallbackSeconds = (mode === 'focus' ? preferences.focusMinutes : preferences.breakMinutes) * 60;
+  const secondsLeft = session?.status === 'running' && session.endsAt
+    ? Math.max(0, Math.ceil((new Date(session.endsAt).getTime() - Date.now()) / 1000))
+    : session?.status === 'paused'
+      ? Math.max(0, session.plannedSeconds - session.elapsedSeconds)
+      : fallbackSeconds;
+  return {
+    mode,
+    workMinutes: preferences.focusMinutes || 25,
+    breakMinutes: preferences.breakMinutes || 5,
+    secondsLeft,
+    running: session?.status === 'running',
+    endsAt: session?.endsAt ? new Date(session.endsAt).getTime() : null,
+    sessionId: session?.id || null,
+    sessionStatus: session?.status || null,
+    sessions: 0,
+    totalSeconds: 0,
+  };
+};
+
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const storedAuth = PlanifyAPI.getStoredAuth();
@@ -49,7 +76,11 @@ function App() {
   const [groupMessages, setGroupMessages] = React.useState({});
   const [groupMessagesLoaded, setGroupMessagesLoaded] = React.useState({});
   const [activeSchedule, setActiveSchedule] = React.useState(null);
-  const [subjects, setSubjects] = usePersistentState('subjects', SUBJECTS);
+  const [progressSummary, setProgressSummary] = React.useState(null);
+  const initialPreferences = { ...DEFAULT_PREFERENCES, ...(storedAuth?.user?.preferences || {}) };
+  const [preferences, setPreferences] = React.useState(initialPreferences);
+  const [subjects, setSubjects] = React.useState(storedAuth?.user?.subjects?.length ? storedAuth.user.subjects : SUBJECTS);
+  const [focusTimer, setFocusTimer] = React.useState(() => timerFromSession(null, initialPreferences));
   const [showAddTask, setShowAddTask] = React.useState(false);
   const [editingTask, setEditingTask] = React.useState(null);
   const [initialTaskDraft, setInitialTaskDraft] = React.useState(null);
@@ -65,35 +96,61 @@ function App() {
     setPage(p);
   };
   const refreshAppData = async (user = currentUser) => {
-    const [loadedTasks, loadedGroups, loadedNotifications, loadedSchedule] = await Promise.all([
+    const [loadedTasks, loadedGroups, loadedNotifications, loadedSchedule, loadedProgress] = await Promise.all([
       PlanifyAPI.listTasks(),
       PlanifyAPI.loadGroupsWithTasks(user),
-      PlanifyAPI.listNotifications(),
-      PlanifyAPI.getActiveSchedule(),
+      PlanifyAPI.listNotifications().catch(() => []),
+      PlanifyAPI.getActiveSchedule().catch(() => null),
+      PlanifyAPI.getProgress('week').catch(() => null),
     ]);
     setTasks(loadedTasks);
     setGroups(loadedGroups.groups);
     setGroupTasks(loadedGroups.groupTasks);
     setNotifications(loadedNotifications);
     setActiveSchedule(loadedSchedule);
+    setProgressSummary(loadedProgress);
+    setFocusTimer(timer => ({
+      ...timer,
+      totalSeconds: loadedProgress?.stats?.focusSeconds || 0,
+    }));
   };
 
   React.useEffect(() => {
     if (!isAuthed) return;
     let alive = true;
     (async () => {
+      let user;
       try {
-        const user = await PlanifyAPI.me();
+        user = await PlanifyAPI.me();
         if (!alive) return;
+        const nextPreferences = { ...DEFAULT_PREFERENCES, ...(user.preferences || {}) };
         setCurrentUser(user);
-        await refreshAppData(user);
+        setPreferences(nextPreferences);
+        setSubjects(user.subjects?.length ? user.subjects : SUBJECTS);
       } catch (e) {
         if (!alive) return;
-        PlanifyAPI.clearAuth();
-        setCurrentUser(null);
-        setIsAuthed(false);
-        setAuthView('signin');
-        notify(e.message || 'Please sign in again');
+        if (e.status === 401) {
+          PlanifyAPI.clearAuth();
+          setCurrentUser(null);
+          setIsAuthed(false);
+          setAuthView('signin');
+          notify('Your session expired. Please sign in again.');
+        } else {
+          notify(e.message || 'Could not verify your account');
+        }
+        return;
+      }
+
+      try {
+        const nextPreferences = { ...DEFAULT_PREFERENCES, ...(user.preferences || {}) };
+        const currentFocus = await PlanifyAPI.getCurrentFocusSession().catch(() => null);
+        if (!alive) return;
+        setFocusTimer(timerFromSession(currentFocus, nextPreferences));
+        await refreshAppData(user);
+      } catch (e) {
+        // A tasks/groups/progress outage is not an authentication failure. Keep
+        // the valid session and let the user retry without being signed out.
+        if (alive) notify(e.message || 'Signed in, but some dashboard data could not load');
       }
     })();
     return () => { alive = false; };
@@ -141,6 +198,9 @@ function App() {
       },
       'notification:deleted': ({ id }) => {
         setNotifications(arr => arr.filter(n => n.id !== id));
+      },
+      'notifications:read-all': () => {
+        setNotifications(arr => arr.map(notification => ({ ...notification, unread: false })));
       },
       'task:created': (payload) => {
         setTasks(arr => upsertById(PlanifyAPI.toUiTask)(arr, payload));
@@ -211,9 +271,21 @@ function App() {
         }));
       },
       'group:deleted': ({ id }) => removeGroupFromState(id),
+      'user:profile-updated': ({ userId, name, avatar }) => {
+        setGroups(arr => arr.map(group => {
+          const memberList = (group.memberList || []).map(member => member.id === userId
+            ? { ...member, name, initials: PlanifyAPI.initials(name), avatar }
+            : member);
+          return { ...group, memberList, members: memberList.map(member => member.initials) };
+        }));
+      },
       'schedule:created': (payload) => setActiveSchedule(PlanifyAPI.toUiSchedule(payload)),
       'schedule:updated': (payload) => setActiveSchedule(PlanifyAPI.toUiSchedule(payload)),
       'schedule:deleted': ({ id }) => setActiveSchedule(s => s?.id === id ? null : s),
+      'focus-session:updated': (payload) => {
+        if (!payload || ['completed', 'cancelled'].includes(payload.status)) return;
+        setFocusTimer(timerFromSession(payload, preferences));
+      },
       'group-chat:message': (payload) => {
         const mapped = PlanifyAPI.toUiMessage(payload);
         setGroupMessages(prev => {
@@ -239,6 +311,10 @@ function App() {
     setGroupMessages({});
     setGroupMessagesLoaded({});
     setActiveSchedule(null);
+    setProgressSummary(null);
+    setPreferences(DEFAULT_PREFERENCES);
+    setSubjects(SUBJECTS);
+    setFocusTimer(timerFromSession(null, DEFAULT_PREFERENCES));
     setOpenGroupId(null);
     setPage('home');
     setAuthView('landing');
@@ -348,7 +424,8 @@ function App() {
 
   const editPersonalTask = async (id, data) => {
     try {
-      const saved = await PlanifyAPI.updateTask(id, data);
+      const existing = tasks.find(task => task.id === id);
+      const saved = await PlanifyAPI.updateTask(id, { ...existing, ...data });
       setTasks(arr => arr.map(t => t.id === id ? saved : t));
       notify('Task updated');
     } catch (e) {
@@ -446,7 +523,8 @@ function App() {
     try {
       const lookup = {};
       (currentGroup?.memberList || []).forEach(m => { lookup[m.id] = m.initials; });
-      const saved = await PlanifyAPI.updateGroupTask(gid, id, data, lookup);
+      const existing = (groupTasks[gid] || []).find(task => task.id === id);
+      const saved = await PlanifyAPI.updateGroupTask(gid, id, { ...existing, ...data }, lookup);
       setGroupTasks(gt => ({
         ...gt,
         [gid]: (gt[gid] || []).map(t => t.id === id ? saved : t),
@@ -526,35 +604,55 @@ function App() {
     }
   };
 
-  const addSubject = (name) => {
+  const persistPreferences = async (nextPreferences = preferences, nextSubjects = subjects) => {
+    const saved = await PlanifyAPI.updatePreferences({
+      preferences: nextPreferences,
+      subjects: nextSubjects,
+    });
+    setPreferences({ ...DEFAULT_PREFERENCES, ...saved.preferences });
+    setSubjects(saved.subjects?.length ? saved.subjects : []);
+    setCurrentUser(user => user ? { ...user, preferences: saved.preferences, subjects: saved.subjects } : user);
+    return saved;
+  };
+
+  const addSubject = async (name) => {
     const v = (name || '').trim();
     if (!v) return;
-    setSubjects(arr => arr.some(s => s.toLowerCase() === v.toLowerCase()) ? arr : [...arr, v]);
-    notify('Subject added: ' + v);
+    const next = subjects.some(s => s.toLowerCase() === v.toLowerCase()) ? subjects : [...subjects, v];
+    try {
+      await persistPreferences(preferences, next);
+      notify('Subject added: ' + v);
+    } catch (error) { notify(error.message || 'Could not add subject'); }
   };
-  const removeSubject = (name) => {
-    setSubjects(arr => arr.filter(s => s !== name));
-    notify('Subject removed');
+  const removeSubject = async (name) => {
+    try {
+      await persistPreferences(preferences, subjects.filter(s => s !== name));
+      notify('Subject removed');
+    } catch (error) { notify(error.message || 'Could not remove subject'); }
+  };
+
+  const saveProfile = async (profile) => {
+    const user = await PlanifyAPI.updateMe(profile);
+    setCurrentUser(user);
+    return user;
+  };
+
+  const updatePreferenceValues = async (next) => {
+    await persistPreferences({ ...preferences, ...next }, subjects);
   };
 
   // Onboarding hands back name/major/subjects — fold them into the app state
-  const finishOnboarding = (data) => {
+  const finishOnboarding = async (data) => {
     if (data) {
-      if (data.subjects && data.subjects.length) setSubjects(data.subjects);
       try {
-        const raw = localStorage.getItem('planify:profile');
-        const prof = raw ? JSON.parse(raw) : {
-          name: currentUser?.username || currentUser?.name || '', email: currentUser?.email || '', year: 'First Year',
-          major: 'Engineering', bio: '',
-        };
-        localStorage.setItem('planify:profile', JSON.stringify({
-          ...prof,
-          name: currentUser?.username || currentUser?.name || data.name || prof.name,
-          email: currentUser?.email || prof.email,
-          year: data.year || prof.year,
-          major: data.major || prof.major,
-        }));
-      } catch (e) {}
+        const user = await PlanifyAPI.updateMe({
+          name: currentUser?.name || data.name,
+          year: data.year,
+          major: data.major,
+        });
+        setCurrentUser(user);
+        if (data.subjects?.length) await persistPreferences(preferences, data.subjects);
+      } catch (error) { notify(error.message || 'Could not save onboarding details'); }
       notify('Welcome to Planify' + (data.name ? ', ' + data.name : '') + '!');
     }
     setIsAuthed(true);
@@ -563,10 +661,19 @@ function App() {
 
   // Group cards reflect live task state once a group has a task list
   const groupsView = groups.map(g => {
+    const memberList = (g.memberList || []).map(member => (
+      member.id === currentUser?.id ? { ...member, avatar: currentUser?.avatar || member.avatar || '' } : member
+    ));
+    const enrichedGroup = {
+      ...g,
+      memberList,
+      members: memberList.map(member => member.initials),
+      memberImages: memberList.map(member => member.avatar || ''),
+    };
     const ts = groupTasks[g.id];
-    if (!ts) return g;
+    if (!ts) return enrichedGroup;
     const done = ts.filter(t => t.done).length;
-    return { ...g, tasksDone: done, tasksTotal: ts.length, progress: ts.length ? done / ts.length : 0 };
+    return { ...enrichedGroup, tasksDone: done, tasksTotal: ts.length, progress: ts.length ? done / ts.length : 0 };
   });
 
   // Accent → CSS var
@@ -617,7 +724,7 @@ function App() {
       />
     );
   } else if (page === 'home') {
-    content = <HomePage user={currentUser} tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} onOpenTask={(t) => setEditingTask(t)} onEditTask={(t) => setEditingTask(t)} goto={goto} />;
+    content = <HomePage user={currentUser} tasks={tasks} focusTimer={focusTimer} progress={progressSummary} aiSuggestions={preferences.aiSuggestions} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} onOpenTask={(t) => setEditingTask(t)} onEditTask={(t) => setEditingTask(t)} goto={goto} />;
   } else if (page === 'tasks') {
     content = <TasksPage tasks={tasks} onToggle={toggleTask} onDelete={deleteTask} onAdd={() => setShowAddTask(true)} onOpenTask={(t) => setEditingTask(t)} onEditTask={(t) => setEditingTask(t)} />;
   } else if (page === 'groups') {
@@ -626,7 +733,13 @@ function App() {
     content = (
       <SchedulePage
         schedule={activeSchedule}
-        onSaveSchedule={(planData) => activeSchedule && PlanifyAPI.updateSchedule(activeSchedule.id, planData).then(setActiveSchedule)}
+        onSaveSchedule={async (planData) => {
+          const saved = activeSchedule
+            ? await PlanifyAPI.updateSchedule(activeSchedule.id, planData)
+            : await PlanifyAPI.createSchedule(planData);
+          setActiveSchedule(saved);
+          return saved;
+        }}
         onCreateTaskAt={(slot) => {
           setInitialTaskDraft({ due: slot.date, scheduleTime: slot.time, title: '', priority: 'medium' });
           setShowAddTask(true);
@@ -636,13 +749,13 @@ function App() {
   } else if (page === 'ai-schedule') {
     content = <AISchedulePage onAdd={() => setShowAddTask(true)} />;
   } else if (page === 'progress') {
-    content = <ProgressPage tasks={tasks} />;
+    content = <ProgressPage tasks={tasks} focusTimer={focusTimer} setFocusTimer={setFocusTimer} preferences={preferences} onPreferencesChange={updatePreferenceValues} />;
   } else if (page === 'notifications') {
     content = <NotificationsPage items={notifications} onMarkAll={markAllRead} onToggle={toggleNotif} onDismiss={dismissNotif} onAcceptInvite={acceptInvite} onDeclineInvite={declineInvite} />;
   } else if (page === 'profile') {
-    content = <ProfilePage user={currentUser} tasks={tasks} groups={groupsView} />;
+    content = <ProfilePage user={currentUser} tasks={tasks} groups={groupsView} progress={progressSummary} onSaveProfile={saveProfile} />;
   } else if (page === 'settings') {
-    content = <SettingsPage subjects={subjects} onAddSubject={addSubject} onRemoveSubject={removeSubject} onSignOut={signOut} />;
+    content = <SettingsPage preferences={preferences} onUpdatePreferences={updatePreferenceValues} subjects={subjects} onAddSubject={addSubject} onRemoveSubject={removeSubject} onSignOut={signOut} />;
   }
 
   // Auth flow: show landing / signin / register before the app
@@ -656,6 +769,7 @@ function App() {
           auth={isAuthed && currentUser ? {
             name: currentUser.username || currentUser.name,
             initials: PlanifyAPI.initials(currentUser.username || currentUser.name),
+            avatar: currentUser.avatar || '',
           } : null}
           onOpenApp={() => setAuthView('app')}
           onSignOut={signOut}

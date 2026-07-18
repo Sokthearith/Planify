@@ -148,7 +148,7 @@ function AddTaskModal({ context, subjects, onAddSubject, onClose, onAdd, editTas
                 <span className={'check' + (assignees.includes(m.id) ? ' on' : '')}>
                   {assignees.includes(m.id) ? <IconCheck size={12} /> : null}
                 </span>
-                <Avatar initials={m.initials} />
+                <Avatar initials={m.initials} image={m.avatar} />
                 <div style={{ flex: 1 }}>
                   <div className="name">{m.name}</div>
                   <div className="role">{m.role}</div>

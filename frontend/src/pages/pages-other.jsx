@@ -2,7 +2,7 @@
 
 import React from 'react';
 import PlanifyAPI from '../api.jsx';
-import { notify, usePersistentState } from '../data.jsx';
+import { notify } from '../data.jsx';
 import {
   IconBell,
   IconCheck,
@@ -11,6 +11,7 @@ import {
   IconLogout,
   IconPlus,
   IconSpark,
+  IconFullscreen,
 } from '../components/icons.jsx';
 import { PriorityTag, priorityClass, priorityLabel } from './pages-home-tasks.jsx';
 
@@ -116,9 +117,9 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
   }, [monthStart, timezone, todayKey]);
 
   const saveEntries = async (nextEntries) => {
-    if (!schedule) return;
     try {
-      await onSaveSchedule?.({ ...planData, timezone, entries: nextEntries });
+      const saved = await onSaveSchedule?.({ ...planData, timezone, entries: nextEntries });
+      if (saved) setSchedule(saved);
     } catch (e) {
       notify(e.message || 'Could not save schedule');
     }
@@ -128,9 +129,9 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
   };
   const deleteManualEvent = (id) => saveEntries(entries.filter(event => event.id !== id));
   const saveRows = async (rows, nextEntries = entries) => {
-    if (!schedule) return;
     try {
-      await onSaveSchedule?.({ ...planData, timezone, rows, entries: nextEntries });
+      const saved = await onSaveSchedule?.({ ...planData, timezone, rows, entries: nextEntries });
+      if (saved) setSchedule(saved);
     } catch (e) {
       notify(e.message || 'Could not save schedule rows');
     }
@@ -172,16 +173,16 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button className="btn ghost" onClick={goPrevWeek} style={{ fontSize: 13 }}>←</button>
+            <button className="btn ghost" onClick={view === 'month' ? goPrevMonth : goPrevWeek} style={{ fontSize: 13 }}>←</button>
             <span className="t-mut" style={{ fontSize: 13, fontWeight: 600, minWidth: 100, textAlign: 'center' }}>{view === 'month' ? monthLabel : weekRange}</span>
-            <button className="btn ghost" onClick={goNextWeek} style={{ fontSize: 13 }}>→</button>
+            <button className="btn ghost" onClick={view === 'month' ? goNextMonth : goNextWeek} style={{ fontSize: 13 }}>→</button>
           </div>
           <div className="seg">
             {['day', 'week', 'month'].map(v => (
               <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{v.toUpperCase()}</button>
             ))}
           </div>
-          {view !== 'month' ? <button className="btn" onClick={addRow} disabled={!schedule}><IconPlus size={14} /> Add row</button> : null}
+          {view !== 'month' ? <button className="btn" onClick={addRow}><IconPlus size={14} /> Add row</button> : null}
         </div>
       </div>
 
@@ -315,7 +316,12 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
               <div
                 key={cell.key}
                 className={'mcell clickable' + (!cell.inMonth ? ' muted' : '') + (cell.today ? ' today' : '')}
-                onClick={() => { setActiveDay(cell.key); setView('day'); }}
+                onClick={() => {
+                  const selected = new Date(cell.key + 'T12:00:00');
+                  setWeekStart(mondayOfWeek(selected));
+                  setActiveDay(cell.key);
+                  setView('day');
+                }}
                 title={'Open ' + cell.key}
               >
                 <span className="num">{String(cell.dayNum).padStart(2, '0')}</span>
@@ -341,59 +347,282 @@ function SchedulePage({ schedule: propSchedule, onSaveSchedule, onCreateTaskAt }
   );
 }
 
-function ProgressPage({ tasks = [] }) {
+function FocusTimer({ value, onChange, onPreferencesChange }) {
+  const timer = {
+    mode: 'focus', workMinutes: 25, breakMinutes: 5, secondsLeft: 25 * 60,
+    running: false, endsAt: null, sessions: 0, totalSeconds: 0,
+    ...(value || {}),
+  };
+  const completedEndRef = React.useRef(null);
+  const timerRef = React.useRef(null);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const durationFor = (mode, state = timer) =>
+    (mode === 'focus' ? state.workMinutes : state.breakMinutes) * 60;
+
+  React.useEffect(() => {
+    const syncFullscreen = () => {
+      const activeElement = document.fullscreenElement || document.webkitFullscreenElement;
+      setIsFullscreen(activeElement === timerRef.current);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!timer.running || !timer.endsAt) return undefined;
+    const tick = async () => {
+      const secondsLeft = Math.max(0, Math.ceil((timer.endsAt - Date.now()) / 1000));
+      if (secondsLeft > 0) {
+        onChange(current => current.secondsLeft === secondsLeft ? current : { ...current, secondsLeft });
+        return;
+      }
+      if (completedEndRef.current === timer.endsAt) return;
+      completedEndRef.current = timer.endsAt;
+      const completedFocus = timer.mode === 'focus';
+      if (timer.sessionId) {
+        try { await PlanifyAPI.updateFocusSession(timer.sessionId, 'complete'); }
+        catch (error) { notify(error.message || 'Could not save focus session'); }
+      }
+      onChange(current => {
+        if (!current.running || current.endsAt !== timer.endsAt) return current;
+        const nextMode = completedFocus ? 'break' : 'focus';
+        return {
+          ...current,
+          mode: nextMode,
+          running: false,
+          endsAt: null,
+          sessionId: null,
+          sessionStatus: null,
+          secondsLeft: durationFor(nextMode, current),
+          sessions: (current.sessions || 0) + (completedFocus ? 1 : 0),
+          totalSeconds: (current.totalSeconds || 0) + (completedFocus ? current.workMinutes * 60 : 0),
+        };
+      });
+      window.PlanifySound?.play('success');
+      notify(completedFocus ? 'Focus session complete — time for a break' : 'Break complete — ready to focus');
+    };
+    tick();
+    const interval = window.setInterval(tick, 250);
+    return () => window.clearInterval(interval);
+  }, [timer.running, timer.endsAt, timer.mode, timer.workMinutes, timer.breakMinutes, onChange]);
+
+  const applySession = (session) => onChange(current => ({
+    ...current,
+    mode: session.kind,
+    running: session.status === 'running',
+    endsAt: session.endsAt ? new Date(session.endsAt).getTime() : null,
+    secondsLeft: session.status === 'running'
+      ? Math.max(0, Math.ceil((new Date(session.endsAt).getTime() - Date.now()) / 1000))
+      : Math.max(0, session.plannedSeconds - session.elapsedSeconds),
+    sessionId: session.id,
+    sessionStatus: session.status,
+  }));
+  const startPause = async () => {
+    try {
+      if (timer.running && timer.sessionId) {
+        applySession(await PlanifyAPI.updateFocusSession(timer.sessionId, 'pause'));
+      } else if (timer.sessionStatus === 'paused' && timer.sessionId) {
+        applySession(await PlanifyAPI.updateFocusSession(timer.sessionId, 'resume'));
+      } else {
+        applySession(await PlanifyAPI.startFocusSession(timer.mode, durationFor(timer.mode)));
+      }
+    } catch (error) { notify(error.message || 'Could not update focus timer'); }
+  };
+  const reset = async () => {
+    try { if (timer.sessionId) await PlanifyAPI.cancelFocusSession(timer.sessionId); }
+    catch (error) { notify(error.message || 'Could not reset focus timer'); }
+    onChange(current => ({
+      ...current, running: false, endsAt: null, sessionId: null, sessionStatus: null,
+      secondsLeft: durationFor(current.mode, current),
+    }));
+  };
+  const switchMode = async (mode) => {
+    if (timer.running || mode === timer.mode) return;
+    if (timer.sessionId) {
+      try { await PlanifyAPI.cancelFocusSession(timer.sessionId); }
+      catch (error) { notify(error.message || 'Could not switch timer mode'); return; }
+    }
+    onChange(current => ({
+      ...current, mode, running: false, endsAt: null, sessionId: null, sessionStatus: null,
+      secondsLeft: durationFor(mode, current),
+    }));
+  };
+  const setWorkMinutes = (minutes) => {
+    if (timer.sessionId) return;
+    onChange(current => ({
+      ...current,
+      workMinutes: minutes,
+      secondsLeft: current.mode === 'focus' ? minutes * 60 : current.secondsLeft,
+    }));
+    Promise.resolve(onPreferencesChange?.({ focusMinutes: minutes }))
+      .catch(error => notify(error.message || 'Could not save focus duration'));
+  };
+  const setBreakMinutes = (minutes) => {
+    if (timer.sessionId) return;
+    onChange(current => ({
+      ...current,
+      breakMinutes: minutes,
+      secondsLeft: current.mode === 'break' ? minutes * 60 : current.secondsLeft,
+    }));
+    Promise.resolve(onPreferencesChange?.({ breakMinutes: minutes }))
+      .catch(error => notify(error.message || 'Could not save break duration'));
+  };
+  const updateDuration = (kind, rawValue) => {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) return;
+    const maximum = kind === 'focus' ? 180 : 60;
+    const minutes = Math.min(maximum, Math.max(1, Math.round(parsed)));
+    if (kind === 'focus') setWorkMinutes(minutes);
+    else setBreakMinutes(minutes);
+  };
+  const toggleFullscreen = async () => {
+    try {
+      const activeElement = document.fullscreenElement || document.webkitFullscreenElement;
+      if (activeElement) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        await exit?.call(document);
+        return;
+      }
+      const enter = timerRef.current?.requestFullscreen || timerRef.current?.webkitRequestFullscreen;
+      if (!enter) throw new Error('Fullscreen is not supported by this browser');
+      await enter.call(timerRef.current);
+    } catch (error) {
+      notify(error.message || 'Could not open the timer in full screen');
+    }
+  };
+  const minutes = Math.floor(timer.secondsLeft / 60);
+  const seconds = timer.secondsLeft % 60;
+  const progress = 1 - (timer.secondsLeft / Math.max(1, durationFor(timer.mode)));
+
+  return (
+    <section ref={timerRef} className={'focus-timer panel ' + timer.mode} aria-label="Pomodoro focus timer">
+      <div className="panel-head">
+        <div>
+          <div className="t-eyebrow">Pomodoro</div>
+          <h2 className="t-h2" style={{ marginTop: 6 }}>Focus timer</h2>
+        </div>
+        <div className="focus-head-actions">
+          <span className="t-mut">{timer.sessions || 0} sessions complete</span>
+          <button
+            className="btn ghost iconbtn"
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? 'Exit full screen' : 'Open full screen'}
+            title={isFullscreen ? 'Exit full screen' : 'Open full screen'}
+          >
+            <IconFullscreen size={15} exit={isFullscreen} />
+          </button>
+        </div>
+      </div>
+      <div className="focus-timer-body">
+        <div className="focus-timer-settings">
+          <div className="seg" aria-label="Timer mode">
+            <button className={timer.mode === 'focus' ? 'on' : ''} onClick={() => switchMode('focus')}>FOCUS</button>
+            <button className={timer.mode === 'break' ? 'on' : ''} onClick={() => switchMode('break')}>BREAK</button>
+          </div>
+          <div className="focus-lengths" aria-label="Focus length">
+            {[25, 45, 60].map(length => (
+              <button key={length} className={timer.workMinutes === length ? 'on' : ''} onClick={() => setWorkMinutes(length)} disabled={!!timer.sessionId}>
+                {length}m
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="focus-custom-durations">
+          <label>
+            <span>Focus minutes</span>
+            <input
+              className="input"
+              type="number"
+              min="1"
+              max="180"
+              step="1"
+              value={timer.workMinutes}
+              disabled={!!timer.sessionId}
+              onChange={event => updateDuration('focus', event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Break minutes</span>
+            <input
+              className="input"
+              type="number"
+              min="1"
+              max="60"
+              step="1"
+              value={timer.breakMinutes}
+              disabled={!!timer.sessionId}
+              onChange={event => updateDuration('break', event.target.value)}
+            />
+          </label>
+        </div>
+        <div className="focus-clock" aria-live="polite">
+          <span>{String(minutes).padStart(2, '0')}</span>
+          <i>:</i>
+          <span>{String(seconds).padStart(2, '0')}</span>
+        </div>
+        <div className="focus-track" aria-hidden="true"><span style={{ width: Math.min(100, Math.max(0, progress * 100)) + '%' }} /></div>
+        <div className="focus-controls">
+          <button className="btn" onClick={startPause}>{timer.running ? 'Pause' : (timer.sessionStatus === 'paused' ? 'Resume' : 'Start')} {timer.mode}</button>
+          <button className="btn ghost" onClick={reset}>Reset</button>
+        </div>
+        <p className="focus-hint">{timer.mode === 'focus' ? 'Work on one task until the timer ends.' : `Step away, stretch, and recharge for ${timer.breakMinutes} minutes.`}</p>
+      </div>
+    </section>
+  );
+}
+
+function ProgressPage({ tasks = [], focusTimer, setFocusTimer, onPreferencesChange }) {
   const [range, setRange] = React.useState('month');
+  const [progressData, setProgressData] = React.useState(null);
+  React.useEffect(() => {
+    let alive = true;
+    PlanifyAPI.getProgress(range)
+      .then(result => { if (alive) setProgressData(result); })
+      .catch(error => notify(error.message || 'Could not load progress'));
+    return () => { alive = false; };
+  }, [range, focusTimer?.sessions]);
   const taskList = tasks;
   const openTasks = taskList.filter(t => !t.done);
   const doneTasks = taskList.filter(t => t.done);
   const priorityCounts = ['urgent', 'medium', 'low'].map(p => ({
     key: p,
     label: priorityLabel(p),
-    count: openTasks.filter(t => priorityClass(t.priority) === p).length,
+    count: progressData?.priorities?.find(item => (item.priority === 'high' ? 'urgent' : item.priority) === p)?.count
+      ?? openTasks.filter(t => priorityClass(t.priority) === p).length,
   }));
-  const totalOpen = openTasks.length;
-  const prioRank = { urgent: 0, medium: 1, low: 2 };
-  const nextActions = [...openTasks]
-    .sort((a, b) => (prioRank[priorityClass(a.priority)] ?? 9) - (prioRank[priorityClass(b.priority)] ?? 9))
-    .slice(0, 3);
+  const totalOpen = priorityCounts.reduce((sum, item) => sum + item.count, 0);
+  const nextActions = progressData?.nextActions?.map(task => ({
+    ...task,
+    priority: task.priority === 'high' ? 'urgent' : task.priority,
+    due: task.deadline ? new Date(task.deadline).toLocaleDateString() : 'No date',
+  })) || openTasks.slice(0, 3);
   const planningScore = Math.round((doneTasks.length / Math.max(taskList.length, 1)) * 100);
-  const focusMix = [];
-  const emptyStats = { done: doneTasks.length, onTime: 0, focus: 0, streak: 0 };
-  const datasets = {
-    week: {
-      cols: [
-        { l: 'Mon', val: 0 }, { l: 'Tue', val: 0 }, { l: 'Wed', val: 0, current: true },
-        { l: 'Thu', val: 0 }, { l: 'Fri', val: 0 }, { l: 'Sat', val: 0 }, { l: 'Sun', val: 0 },
-      ],
-      caption: 'This week, by day',
-      stats: emptyStats,
-    },
-    month: {
-      cols: [
-        { l: 'W17', val: 0 }, { l: 'W18', val: 0 }, { l: 'W19', val: 0 },
-        { l: 'W20', val: 0 }, { l: 'W21', val: 0 }, { l: 'W22', val: 0 },
-        { l: 'W23', val: 0, current: true },
-      ],
-      caption: 'Last 7 weeks',
-      stats: emptyStats,
-    },
-    term: {
-      cols: [
-        { l: 'Jan', val: 0 }, { l: 'Feb', val: 0 }, { l: 'Mar', val: 0 },
-        { l: 'Apr', val: 0 }, { l: 'May', val: 0 }, { l: 'Jun', val: 0, current: true },
-      ],
-      caption: 'Spring term, by month',
-      stats: emptyStats,
+  const focusSeconds = progressData?.stats?.focusSeconds || 0;
+  const focusMix = focusSeconds ? [{ label: 'Focused work', value: 100, note: `${(focusSeconds / 3600).toFixed(1)} hours logged` }] : [];
+  const data = {
+    caption: range === 'week' ? 'This week, by day' : range === 'term' ? 'Last 6 months' : 'Last 7 weeks',
+    cols: (progressData?.buckets || []).map((bucket, index, list) => ({
+      l: bucket.label, val: bucket.rate, current: index === list.length - 1,
+    })),
+    stats: {
+      done: progressData?.stats?.completed ?? doneTasks.length,
+      onTime: progressData?.stats?.onTimeRate || 0,
+      focus: Number((focusSeconds / 3600).toFixed(1)),
+      streak: progressData?.stats?.streak || 0,
     },
   };
-  const data = datasets[range];
-  const subjects = Object.values(taskList.reduce((acc, task) => {
+  const fallbackSubjects = Object.values(taskList.reduce((acc, task) => {
     const name = task.subject || 'General';
     acc[name] = acc[name] || { name, done: 0, total: 0 };
     acc[name].total += 1;
     if (task.done) acc[name].done += 1;
     return acc;
   }, {}));
+  const subjects = progressData?.subjects || fallbackSubjects;
   const habits = taskList.length ? [
     { label: 'Overload risk', value: priorityCounts[0].count ? 'High' : 'Low', detail: priorityCounts[0].count + ' high-priority open' },
   ] : [];
@@ -401,7 +630,7 @@ function ProgressPage({ tasks = [] }) {
     <div className="page">
       <div className="page-head row">
         <div>
-          <div className="page-eyebrow">Spring semester</div>
+          <div className="page-eyebrow">Historical analytics</div>
           <h1 className="t-h1" style={{ marginTop: 8 }}>Progress</h1>
         </div>
         <div className="seg">
@@ -421,7 +650,7 @@ function ProgressPage({ tasks = [] }) {
           <span className="t-stat">{data.stats.onTime}<span style={{ fontSize: 28, color: 'var(--muted)' }}>%</span></span>
         </div>
         <div className="stat">
-          <span className="label">Avg focus / day</span>
+          <span className="label">Focus logged</span>
           <span className="t-stat">{data.stats.focus}<span style={{ fontSize: 28, color: 'var(--muted)' }}>h</span></span>
         </div>
         <div className="stat">
@@ -431,6 +660,10 @@ function ProgressPage({ tasks = [] }) {
       </div>
 
       <div style={{ height: 40 }} />
+
+      <FocusTimer value={focusTimer} onChange={setFocusTimer} onPreferencesChange={onPreferencesChange} />
+
+      <div style={{ height: 24 }} />
 
       <div className="progress-grid">
         <div className="panel">
@@ -638,27 +871,93 @@ function NotificationsPage({ items, onMarkAll, onToggle, onDismiss, onAcceptInvi
   );
 }
 
-function ProfilePage({ user, tasks = [], groups = [] }) {
+function resizeProfileImage(file) {
+  return new Promise((resolve, reject) => {
+    if (!file?.type?.startsWith('image/')) {
+      reject(new Error('Choose an image file'));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      reject(new Error('Profile picture must be smaller than 5 MB'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that image'));
+    reader.onload = () => {
+      const image = new window.Image();
+      image.onerror = () => reject(new Error('Could not open that image'));
+      image.onload = () => {
+        const maxSize = 512;
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.86));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function ProfilePage({ user, tasks = [], groups = [], progress, onSaveProfile }) {
   const defaults = {
     name: user?.username || user?.name || '', email: user?.email || '', year: 'First Year',
-    major: 'Engineering', bio: '',
+    major: 'Engineering', bio: '', avatar: '',
   };
-  const [saved, setSaved] = usePersistentState('profile', defaults);
   const profile = {
     ...defaults,
-    ...saved,
-    name: user?.username || user?.name || saved.name || defaults.name || 'Student',
-    email: user?.email || saved.email || defaults.email,
+    year: user?.year || defaults.year,
+    major: user?.major || defaults.major,
+    bio: user?.bio || '',
+    avatar: user?.avatar || '',
+    name: user?.username || user?.name || defaults.name || 'Student',
+    email: user?.email || defaults.email,
   };
   const [draft, setDraft] = React.useState(profile);
+  const [saving, setSaving] = React.useState(false);
+  const photoInput = React.useRef(null);
   React.useEffect(() => {
     setDraft(profile);
-  }, [user?.username, user?.name, user?.email, saved.year, saved.major, saved.bio]);
+  }, [user?.username, user?.name, user?.email, user?.year, user?.major, user?.bio, user?.avatar]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(profile);
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
-  const initials = PlanifyAPI.initials(profile.name, 'U');
-  const save = () => { setSaved({ ...saved, ...draft }); notify('Profile saved'); };
-  const streak = 0;
+  const initials = PlanifyAPI.initials(draft.name || profile.name, 'U');
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSaveProfile?.({
+        name: draft.name,
+        year: draft.year,
+        major: draft.major,
+        bio: draft.bio,
+        avatar: draft.avatar,
+      });
+      notify('Profile saved');
+    } catch (error) {
+      notify(error.message || 'Could not save profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const choosePhoto = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const avatar = await resizeProfileImage(file);
+      set('avatar', avatar);
+    } catch (error) {
+      notify(error.message || 'Could not add profile picture');
+    }
+  };
+  const streak = progress?.stats?.streak || 0;
 
   return (
     <div className="page">
@@ -668,10 +967,17 @@ function ProfilePage({ user, tasks = [], groups = [] }) {
       </div>
       <div className="profile-grid">
         <div className="panel" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
-          <div className="avatar" style={{ width: 96, height: 96, fontSize: 32, borderRadius: '50%' }}>{initials}</div>
+          <div className="profile-photo">
+            {draft.avatar ? <img src={draft.avatar} alt={`${draft.name || 'User'} profile`} /> : <span>{initials}</span>}
+          </div>
+          <input ref={photoInput} className="profile-photo-input" type="file" accept="image/*" onChange={choosePhoto} />
+          <div className="profile-photo-actions">
+            <button className="btn ghost sm" onClick={() => photoInput.current?.click()}>{draft.avatar ? 'Change picture' : 'Add picture'}</button>
+            {draft.avatar ? <button className="btn ghost sm" onClick={() => set('avatar', '')}>Remove</button> : null}
+          </div>
           <div>
-            <div className="t-h2">{profile.name}</div>
-            <div className="t-mut">{profile.year} · {profile.major}</div>
+            <div className="t-h2">{draft.name}</div>
+            <div className="t-mut">{draft.year} · {draft.major}</div>
           </div>
           <div style={{ display: 'flex', gap: 20, paddingTop: 14, borderTop: '1px solid var(--line)', width: '100%' }}>
             <div>
@@ -693,7 +999,7 @@ function ProfilePage({ user, tasks = [], groups = [] }) {
           <div className="panel-head"><h3 className="t-h3">Personal information</h3></div>
           <div className="panel-pad" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <div className="field"><label>Full name</label><input className="input" value={draft.name} onChange={e => set('name', e.target.value)} /></div>
-            <div className="field"><label>Email</label><input className="input" type="email" value={draft.email} onChange={e => set('email', e.target.value)} /></div>
+            <div className="field"><label>Email</label><input className="input" type="email" value={draft.email} readOnly aria-readonly="true" title="Email changes are not available here" /></div>
             <div className="field"><label>Year</label>
               <select className="select" value={draft.year} onChange={e => set('year', e.target.value)}>
                 <option>First Year</option><option>Second Year</option><option>Third Year</option><option>Fourth Year</option>
@@ -705,7 +1011,7 @@ function ProfilePage({ user, tasks = [], groups = [] }) {
           <div className="profile-actions" style={{ padding: 24, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' }}>
             {dirty ? <span className="t-mut" style={{ marginRight: 'auto' }}>Unsaved changes</span> : null}
             <button className="btn ghost" data-sound="close" onClick={() => setDraft(profile)} disabled={!dirty}>Cancel</button>
-            <button className="btn" onClick={save} disabled={!dirty}>Save changes</button>
+            <button className="btn" onClick={save} disabled={!dirty || saving}>{saving ? 'Saving…' : 'Save changes'}</button>
           </div>
         </div>
       </div>
@@ -713,11 +1019,11 @@ function ProfilePage({ user, tasks = [], groups = [] }) {
   );
 }
 
-function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject, onSignOut }) {
-  const [prefs, setPrefs] = usePersistentState('settings', {
-    push: true, email: true, digest: false, ai: true, calendar: false, publicProfile: false,
-  });
-  const toggle = (k) => setPrefs(p => ({ ...p, [k]: !p[k] }));
+function SettingsPage({ preferences = {}, onUpdatePreferences, subjects = [], onAddSubject, onRemoveSubject, onSignOut }) {
+  const toggle = async (key) => {
+    try { await onUpdatePreferences?.({ [key]: !preferences[key] }); }
+    catch (error) { notify(error.message || 'Could not save preference'); }
+  };
   const [newSubject, setNewSubject] = React.useState('');
   const addSubject = () => {
     const v = newSubject.trim();
@@ -727,24 +1033,17 @@ function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject, onSignOut 
   };
   const sections = [
     {
-      title: 'Notifications', sub: 'Push, email and weekly digest preferences',
+      title: 'In-app notifications', sub: 'Choose which activity appears in your Planify inbox',
       items: [
-        { k: 'push', label: 'Push notifications' },
-        { k: 'email', label: 'Email reminders' },
-        { k: 'digest', label: 'Weekly digest' },
+        { k: 'inAppNotifications', label: 'Enable optional notifications' },
+        { k: 'dueReminders', label: 'Deadline reminders' },
+        { k: 'groupTaskUpdates', label: 'Group task updates' },
+        { k: 'groupMessages', label: 'Group messages' },
       ],
     },
     {
       title: 'AI suggestions', sub: 'Allow Planify to suggest schedules and study blocks',
-      items: [{ k: 'ai', label: 'Smart scheduling suggestions' }],
-    },
-    {
-      title: 'Calendar sync', sub: 'Connect Google or Apple calendar',
-      items: [{ k: 'calendar', label: 'Sync external calendar' }],
-    },
-    {
-      title: 'Data & privacy', sub: 'Export, delete, and visibility controls',
-      items: [{ k: 'publicProfile', label: 'Public profile' }],
+      items: [{ k: 'aiSuggestions', label: 'Smart scheduling suggestions' }],
     },
   ];
   return (
@@ -786,9 +1085,9 @@ function SettingsPage({ subjects = [], onAddSubject, onRemoveSubject, onSignOut 
                 <div key={it.k} className="setting-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 13.5, fontWeight: 600 }}>{it.label}</span>
                   <button
-                    className={'switch' + (prefs[it.k] ? ' on' : '')}
+                    className={'switch' + (preferences[it.k] ? ' on' : '')}
                     onClick={() => toggle(it.k)}
-                    role="switch" aria-checked={prefs[it.k]} aria-label={it.label}
+                    role="switch" aria-checked={!!preferences[it.k]} aria-label={it.label}
                   ><span className="knob" /></button>
                 </div>
               ))}
