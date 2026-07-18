@@ -42,8 +42,10 @@ const pickTaskFields = (body) => {
   }
   delete fields.dueDate;
 
-  if (fields.done !== undefined && fields.status === undefined) {
-    fields.status = fields.done ? "done" : "pending";
+  if (fields.done !== undefined) {
+    fields.status = fields.done
+      ? "done"
+      : fields.status === "in_progress" ? "in_progress" : "pending";
   }
   delete fields.done;
 

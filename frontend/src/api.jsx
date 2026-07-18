@@ -125,17 +125,24 @@ const PlanifyAPI = (() => {
     return null;
   };
 
-  const taskPayload = (task) => ({
-    title: task.title,
-    description: task.desc || task.description || '',
-    deadline: task.rawDeadline || toDateValue(task.due),
-    dueDate: task.rawDeadline || toDateValue(task.due),
-    priority: toApiPriority(task.priority),
-    estimatedHours: task.estimatedHours || null,
-    done: task.done || false,
-    status: task.done ? 'done' : (task.status || 'pending'),
-    assignees: task.assigneeIds || task.assignees || [],
-  });
+  const taskPayload = (task) => {
+    const done = task.done === true;
+    const status = done
+      ? 'done'
+      : task.status === 'in_progress' ? 'in_progress' : 'pending';
+
+    return {
+      title: task.title,
+      description: task.desc || task.description || '',
+      deadline: task.rawDeadline || toDateValue(task.due),
+      dueDate: task.rawDeadline || toDateValue(task.due),
+      priority: toApiPriority(task.priority),
+      estimatedHours: task.estimatedHours || null,
+      done,
+      status,
+      assignees: task.assigneeIds || task.assignees || [],
+    };
+  };
 
   const toUiGroupMember = (member) => ({
     id: member.userId,

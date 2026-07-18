@@ -87,6 +87,21 @@ test("personal create and completion do not create self notifications", { skip: 
   assert.equal(notifications.data.some((item) => /Task (created|completed):/.test(item.message)), false);
 });
 
+test("an explicit false done value reopens a completed personal task", { skip: !enabled }, async () => {
+  const created = await api("/tasks", {
+    method: "POST",
+    body: { title: "Reopen personal task", priority: "medium", status: "done" },
+  });
+  const reopened = await api(`/tasks/${created.data.id}`, {
+    method: "PUT",
+    body: { done: false, status: "done" },
+  });
+
+  assert.equal(reopened.response.status, 200);
+  assert.equal(reopened.data.status, "pending");
+  assert.equal(reopened.data.completedAt, null);
+});
+
 test("focus completion contributes to progress", { skip: !enabled }, async () => {
   const started = await api("/focus-sessions", {
     method: "POST",

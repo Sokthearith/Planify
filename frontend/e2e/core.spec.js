@@ -28,7 +28,7 @@ const progress = {
 
 const installApi = async (page, options = {}) => {
   let currentUser = { ...user, ...(options.user || {}) };
-  const tasks = [];
+  const tasks = options.tasks || [];
   const groups = options.groups || [];
   const groupTasks = options.groupTasks || {};
   let scheduleCreates = 0;
@@ -56,6 +56,14 @@ const installApi = async (page, options = {}) => {
       const task = request.postDataJSON();
       body = { id: `task-${tasks.length + 1}`, ...task, status: 'pending', createAt: new Date().toISOString() };
       tasks.unshift(body);
+    } else if (/^\/tasks\/[^/]+$/.test(path) && method === 'PUT') {
+      const update = request.postDataJSON();
+      const task = tasks.find(item => item.id === path.split('/')[2]);
+      Object.assign(task, update, {
+        status: update.status,
+        completedAt: update.status === 'done' ? (task.completedAt || new Date().toISOString()) : null,
+      });
+      body = task;
     } else if (path === '/groups') body = groups;
     else if (/^\/groups\/[^/]+\/tasks$/.test(path) && method === 'GET') {
       body = groupTasks[path.split('/')[2]] || [];
@@ -131,6 +139,24 @@ test('new personal task appears on Home immediately', async ({ page }) => {
   await page.locator('.modal select').selectOption('Mathematics');
   await page.getByRole('button', { name: 'Add Task' }).click();
   await expect(page.getByText('E2E calculus task').first()).toBeVisible();
+});
+
+test('completed personal task can be unticked', async ({ page }) => {
+  const completedAt = new Date().toISOString();
+  await installApi(page, {
+    tasks: [{
+      id: 'task-done',
+      title: 'Review completed notes',
+      subject: 'Mathematics',
+      priority: 'medium',
+      status: 'done',
+      completedAt,
+    }],
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Tasks' }).click();
+  await page.getByRole('button', { name: 'Toggle done' }).click();
+  await expect(page.getByText('Review completed notes').locator('..').locator('..')).not.toHaveClass(/done/);
 });
 
 test('profile picture persists to landing account avatar', async ({ page }) => {
