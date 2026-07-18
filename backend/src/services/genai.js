@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 
-const MODEL = "openai/gpt-4o-mini";
+const MODEL = "auto:free";
 const API_BASE = "https://bazaarlink.ai/api/v1/chat/completions";
 
 let apiKey;

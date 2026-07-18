@@ -6,6 +6,7 @@ backend/node_modules/
 .env.*
 backend/.env
 backend/.lazy.lua
+backend/test/api-test.http
 frontend/test-results/
 frontend/playwright-report/
 frontend/.env

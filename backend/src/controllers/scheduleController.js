@@ -5,10 +5,7 @@ import {
   normalizeSchedulePayload,
   syncTaskDeadlinesForSchedule,
 } from "../utils/scheduleSync.js";
-import {
-  autoScheduleTasks,
-  handleSmartScheduler,
-} from "../services/genai.js";
+import { autoScheduleTasks, handleSmartScheduler } from "../services/genai.js";
 import { deterministicSchedule } from "../services/scheduler.js";
 import { Op } from "sequelize";
 import {
@@ -69,7 +66,9 @@ const dateKey = (value) => {
     return value.slice(0, 10);
   }
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : parsed.toISOString().slice(0, 10);
 };
 
 const startOfCurrentWeek = (timezone) => {
@@ -95,7 +94,9 @@ const normalizePreferences = (body = {}) => {
       ? body.focusStart
       : "08:00",
     focusEnd: TIME_PATTERN.test(body.focusEnd || "") ? body.focusEnd : "20:00",
-    sessionMinutes: allowedSessions.includes(sessionMinutes) ? sessionMinutes : 60,
+    sessionMinutes: allowedSessions.includes(sessionMinutes)
+      ? sessionMinutes
+      : 60,
     includeWeekends: body.includeWeekends !== false,
     instructions:
       typeof body.instructions === "string"
@@ -116,11 +117,12 @@ const normalizeGeminiEntries = (
   availability = [],
 ) => {
   const { weekStart, timezone } = preferences;
-  const today = new Date(`${dateInTimezone(new Date(), timezone)}T00:00:00.000Z`);
-  const firstDay = new Date(Math.max(
-    new Date(`${weekStart}T00:00:00.000Z`).getTime(),
-    today.getTime()
-  ));
+  const today = new Date(
+    `${dateInTimezone(new Date(), timezone)}T00:00:00.000Z`,
+  );
+  const firstDay = new Date(
+    Math.max(new Date(`${weekStart}T00:00:00.000Z`).getTime(), today.getTime()),
+  );
   const lastDay = new Date(firstDay);
   lastDay.setUTCDate(lastDay.getUTCDate() + 6);
   const lastEndByDate = new Map();
@@ -130,28 +132,46 @@ const normalizeGeminiEntries = (
       const match = /^T(\d+)$/.exec(entry.taskRef || "");
       const task = match ? tasks[Number(match[1]) - 1] : null;
       if (!task || !DATE_PATTERN.test(entry.date || "")) return null;
-      if (!TIME_PATTERN.test(entry.startTime || "") || !TIME_PATTERN.test(entry.endTime || "")) return null;
+      if (
+        !TIME_PATTERN.test(entry.startTime || "") ||
+        !TIME_PATTERN.test(entry.endTime || "")
+      )
+        return null;
       if (entry.endTime <= entry.startTime) return null;
 
       const entryDate = new Date(`${entry.date}T00:00:00.000Z`);
       if (entryDate < firstDay || entryDate > lastDay) return null;
       const dayOfWeek = entryDate.getUTCDay();
-      if (!preferences.includeWeekends && (dayOfWeek === 0 || dayOfWeek === 6)) return null;
-      if (entry.startTime < preferences.focusStart || entry.endTime > preferences.focusEnd) return null;
-      const deadlinePast = task.deadline ? new Date(`${task.deadline}T23:59:59.000Z`) < today : false;
-      if (!deadlinePast && task.deadline && entry.date > task.deadline) return null;
+      if (!preferences.includeWeekends && (dayOfWeek === 0 || dayOfWeek === 6))
+        return null;
+      if (
+        entry.startTime < preferences.focusStart ||
+        entry.endTime > preferences.focusEnd
+      )
+        return null;
+      const deadlinePast = task.deadline
+        ? new Date(`${task.deadline}T23:59:59.000Z`) < today
+        : false;
+      if (!deadlinePast && task.deadline && entry.date > task.deadline)
+        return null;
 
-      const daySlots = availability.filter((slot) => slot.dayOfWeek === dayOfWeek);
-      const availableSlots = daySlots.filter((slot) => slot.type === "available");
+      const daySlots = availability.filter(
+        (slot) => slot.dayOfWeek === dayOfWeek,
+      );
+      const availableSlots = daySlots.filter(
+        (slot) => slot.type === "available",
+      );
       const isInsideAvailability =
         !availableSlots.length ||
         availableSlots.some(
-          (slot) => entry.startTime >= slot.startTime && entry.endTime <= slot.endTime,
+          (slot) =>
+            entry.startTime >= slot.startTime && entry.endTime <= slot.endTime,
         );
       const overlapsBlockedTime = daySlots
         .filter((slot) => slot.type === "blocked")
         .some(
-          (slot) => entry.startTime < slot.endTime && entry.endTime > slot.startTime,
+          (slot) =>
+            entry.startTime < slot.endTime && entry.endTime > slot.startTime,
         );
       if (!isInsideAvailability || overlapsBlockedTime) return null;
 
@@ -169,21 +189,28 @@ const normalizeGeminiEntries = (
         startTime: entry.startTime,
         endTime: entry.endTime,
         dueDate: dateKey(task.deadline),
-        reason: typeof entry.reason === "string" ? entry.reason.slice(0, 180) : "",
+        reason:
+          typeof entry.reason === "string" ? entry.reason.slice(0, 180) : "",
       };
     })
     .filter(Boolean)
-    .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))
+    .sort((a, b) =>
+      `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`),
+    )
     .filter((entry) => {
       const lastEnd = lastEndByDate.get(entry.date);
-      if (lastEnd !== undefined && timeInMinutes(entry.startTime) < lastEnd + 10) {
+      if (
+        lastEnd !== undefined &&
+        timeInMinutes(entry.startTime) < lastEnd + 10
+      ) {
         return false;
       }
       lastEndByDate.set(entry.date, timeInMinutes(entry.endTime));
       return true;
     });
 
-  if (!entries.length) throw new Error("Gemini returned no valid schedule entries");
+  if (!entries.length)
+    throw new Error("Gemini returned no valid schedule entries");
   const scheduledTaskIds = new Set(entries.map((entry) => entry.sourceId));
   if (tasks.some((task) => !scheduledTaskIds.has(task.id))) {
     throw new Error("Gemini returned an incomplete schedule");
@@ -228,7 +255,6 @@ export const getMySchedules = async (req, res) => {
     where,
     order: [["generatedAt", "DESC"]],
   });
-
 
   res.json(schedules);
 };
@@ -304,12 +330,14 @@ export const autoGenerateSchedule = async (req, res) => {
         ],
         done: false,
       },
-      include: [{
-        model: GroupTaskAssignee,
-        as: "assigneeLinks",
-        attributes: [],
-        required: false,
-      }],
+      include: [
+        {
+          model: GroupTaskAssignee,
+          as: "assigneeLinks",
+          attributes: [],
+          required: false,
+        },
+      ],
       order: [["dueDate", "ASC"]],
     }),
     UserAvailability.findAll({ where: { userId: req.user.id } }),
@@ -354,9 +382,14 @@ export const autoGenerateSchedule = async (req, res) => {
       ...preferences,
       availability: availability.map((slot) => slot.toJSON()),
     });
-    entries = normalizeGeminiEntries(result, allTasks, preferences, availability);
+    entries = normalizeGeminiEntries(
+      result,
+      allTasks,
+      preferences,
+      availability,
+    );
     generation = {
-      provider: "groq",
+      provider: "bazaar",
       model: result.model,
       summary: result.summary,
       strategyNotes: Array.isArray(result.strategyNotes)
@@ -365,7 +398,7 @@ export const autoGenerateSchedule = async (req, res) => {
       preferences,
     };
   } catch (error) {
-    console.warn(`Groq schedule fallback: ${error.message}`);
+    console.warn(`Bazaar schedule fallback: ${error.message}`);
     entries = deterministicSchedule(allTasks, availability, preferences);
     generation = {
       provider: "local-fallback",
